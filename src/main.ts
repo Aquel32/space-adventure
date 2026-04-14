@@ -1,62 +1,18 @@
 // oxlint-disable-next-line no-unassigned-import
+import { cos, sin } from "typegpu/std";
+import { Camera, setupFirstPersonCamera } from "./setup-first-person-camera";
 import "./style.css";
-import typescriptLogo from "./assets/typescript.svg";
-import viteLogo from "./assets/vite.svg";
-import { setupCounter } from "./counter.ts";
-import tgpu, { common, d } from "typegpu";
+import tgpu, { common, d, std } from "typegpu";
+import type { v3f, v4f } from "typegpu/data";
+import * as sphere from "./sphere";
 
 document.querySelector<HTMLDivElement>("#app")!.innerHTML = `
 <section id="center">
   <div class="hero">
-    <canvas id="canvas" width="256" height="256"></canvas>
-  </div>
-  <div>
-    <h1>Get started</h1>
-    <p>Edit <code>src/main.ts</code> and save to test <code>HMR</code></p>
-  </div>
-  <button id="counter" type="button" class="counter"></button>
-</section>
-
-<div class="ticks"></div>
-
-<section id="next-steps">
-  <div id="docs">
-    <svg class="icon" role="presentation" aria-hidden="true"><use href="/icons.svg#documentation-icon"></use></svg>
-    <h2>Documentation</h2>
-    <p>Your questions, answered</p>
-    <ul>
-      <li>
-        <a href="https://vite.dev/" target="_blank">
-          <img class="logo" src=${viteLogo} alt="" />
-          Explore Vite
-        </a>
-      </li>
-      <li>
-        <a href="https://www.typescriptlang.org" target="_blank">
-          <img class="button-icon" src="${typescriptLogo}" alt="">
-          Learn more
-        </a>
-      </li>
-    </ul>
-  </div>
-  <div id="social">
-    <svg class="icon" role="presentation" aria-hidden="true"><use href="/icons.svg#social-icon"></use></svg>
-    <h2>Connect with us</h2>
-    <p>Join the Vite community</p>
-    <ul>
-      <li><a href="https://github.com/vitejs/vite" target="_blank"><svg class="button-icon" role="presentation" aria-hidden="true"><use href="/icons.svg#github-icon"></use></svg>GitHub</a></li>
-      <li><a href="https://chat.vite.dev/" target="_blank"><svg class="button-icon" role="presentation" aria-hidden="true"><use href="/icons.svg#discord-icon"></use></svg>Discord</a></li>
-      <li><a href="https://x.com/vite_js" target="_blank"><svg class="button-icon" role="presentation" aria-hidden="true"><use href="/icons.svg#x-icon"></use></svg>X.com</a></li>
-      <li><a href="https://bsky.app/profile/vite.dev" target="_blank"><svg class="button-icon" role="presentation" aria-hidden="true"><use href="/icons.svg#bluesky-icon"></use></svg>Bluesky</a></li>
-    </ul>
+    <canvas id="canvas" width="600" height="512"></canvas>
   </div>
 </section>
-
-<div class="ticks"></div>
-<section id="spacer"></section>
 `;
-
-setupCounter(document.querySelector<HTMLButtonElement>("#counter")!);
 
 // Setting up TypeGPU
 const root = await tgpu.init();
@@ -64,12 +20,54 @@ const root = await tgpu.init();
 const canvas = document.querySelector<HTMLCanvasElement>("#canvas")!;
 const context = root.configureContext({ canvas });
 
-const pipeline = root.createRenderPipeline({
-  vertex: common.fullScreenTriangle,
-  fragment: ({ uv }) => {
-    "use gpu";
-    return d.vec4f(uv, 0, 1);
+const cameraUniform = root.createUniform(Camera);
+const { updatePosition } = setupFirstPersonCamera(
+  canvas,
+  {
+    initPos: d.vec3f(0, 0, -5),
+    speed: d.vec3f(0.001, 0.1, 1),
   },
+  (props) => {
+    cameraUniform.writePartial(props);
+  },
+);
+
+const SPHERE_DIVISIONS = 3;
+const RADIUS = 1;
+const POSITION = d.vec3f(0, 0, 0);
+
+const verticies = tgpu.const(d.arrayOf(d.vec4f, sphere.getVertexAmount(SPHERE_DIVISIONS)), sphere.generateSphere(POSITION, RADIUS, SPHERE_DIVISIONS));
+
+const pipeline = root.createRenderPipeline({
+  vertex: ({ $vertexIndex: vid, $instanceIndex: instanceid }) => {
+    'use gpu';
+
+    const point = verticies.$[vid];
+    const camera = cameraUniform.$;
+    const position = camera.projection.mul(camera.view).mul(point);
+
+    return {
+      $position: position,
+      uv: d.vec2f(1, 1),
+      vid: d.f32(vid),
+    };
+  },
+  fragment: ({ uv, vid }) => {
+    'use gpu';
+    return d.vec4f(vid%3/3, 0, 0, 1);
+  },
+  primitive: {
+    cullMode: "back",
+  }
 });
 
-pipeline.withColorAttachment({ view: context }).draw(3);
+function render()
+{
+  pipeline.withColorAttachment({ view: context }).draw(verticies.$.length, 1);
+
+  updatePosition();
+
+  requestAnimationFrame(render);
+}
+
+requestAnimationFrame(render);

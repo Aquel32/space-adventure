@@ -32,7 +32,7 @@ const { updatePosition } = setupFirstPersonCamera(
   },
 );
 
-const SPHERE_DIVISIONS = 3;
+const SPHERE_DIVISIONS = 10;
 const RADIUS = 1;
 const POSITION = d.vec3f(0, 0, 0);
 
@@ -45,7 +45,6 @@ const pipeline = root.createRenderPipeline({
     const point = verticies.$[vid];
     const camera = cameraUniform.$;
     const position = camera.projection.mul(camera.view).mul(point);
-
     return {
       $position: position,
       uv: d.vec2f(1, 1),
@@ -54,10 +53,7 @@ const pipeline = root.createRenderPipeline({
   },
   fragment: ({ uv, vid }) => {
     'use gpu';
-    return d.vec4f(vid%3/3, 0, 0, 1);
-  },
-  primitive: {
-    cullMode: "back",
+    return d.vec4f(vid%3/3 , 0, 0, 1);
   }
 });
 

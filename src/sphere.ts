@@ -11,7 +11,7 @@ const cubeDirections = [
 ];
 
 export function getVertexAmount(divisions: number) {
-    return cubeDirections.length * divisions * divisions * 3;
+    return cubeDirections.length * divisions * divisions * 6;
 }
 
 function getPointOnCubeFace(direction: v3f, divisions: number, x: number, y: number) {
@@ -32,6 +32,10 @@ export function generateSphere(position: v3f, radius: number, divisions: number)
       for(let y = 0; y < divisions; y++){
         vericies.push(getPointOnCubeFace(direction, divisions, x, y).add(position).mul(radius));
         vericies.push(getPointOnCubeFace(direction, divisions, x+1, y).add(position).mul(radius));
+        vericies.push(getPointOnCubeFace(direction, divisions, x, y+1).add(position).mul(radius));
+
+        vericies.push(getPointOnCubeFace(direction, divisions, x+1, y).add(position).mul(radius));
+        vericies.push(getPointOnCubeFace(direction, divisions, x+1, y+1).add(position).mul(radius));
         vericies.push(getPointOnCubeFace(direction, divisions, x, y+1).add(position).mul(radius));
       }
     }

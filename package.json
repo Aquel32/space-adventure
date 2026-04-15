@@ -11,7 +11,7 @@
     "fix": "oxlint --fix && oxfmt"
   },
   "dependencies": {
-    "typegpu": "^0.10.2",
+    "typegpu": "^0.11.2",
     "wgpu-matrix": "^3.4.2"
   },
   "devDependencies": {
@@ -19,7 +19,7 @@
     "oxfmt": "^0.45.0",
     "oxlint": "^1.60.0",
     "typescript": "npm:tsover@6.0.0",
-    "unplugin-typegpu": "^0.10.2",
+    "unplugin-typegpu": "^0.11.0",
     "vite": "^8.0.4"
   },
   "overrides": {

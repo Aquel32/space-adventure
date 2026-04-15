@@ -53,13 +53,30 @@ const pipeline = root.createRenderPipeline({
   },
   fragment: ({ uv, vid }) => {
     'use gpu';
-    return d.vec4f(vid%3/3 , 0, 0, 1);
-  }
+    return d.vec4f(1 - vid%3/6 , 0, 0, 1);
+  },
+  depthStencil: {
+    format: "depth24plus",
+    depthWriteEnabled: true,
+    depthCompare: "less",
+  },
 });
 
+let depthTexture = root.createTexture({
+  size: [canvas.width, canvas.height, 1],
+  format: 'depth24plus',
+}).$usage("render");
 function render()
 {
-  pipeline.withColorAttachment({ view: context }).draw(verticies.$.length, 1);
+  pipeline.
+    withColorAttachment({ view: context }).
+    withDepthStencilAttachment({ 
+      view: depthTexture, 
+      depthLoadOp: "clear",
+      depthClearValue: 1, 
+      depthStoreOp: "store"
+    }).
+    draw(verticies.$.length, 1);
 
   updatePosition();
 

@@ -25,18 +25,18 @@ function getPointOnCubeFace(direction: v3f, divisions: number, x: number, y: num
   return std.normalize(point);
 }
 
-export function generateSphere(position: v3f, radius: number, divisions: number) {
+export function generateSphere(divisions: number) {
   const vericies: v3f[] = [];
   cubeDirections.forEach((direction, i)=>{
     for(let x = 0; x < divisions; x++){
       for(let y = 0; y < divisions; y++){
-        vericies.push(getPointOnCubeFace(direction, divisions, x, y).add(position));
-        vericies.push(getPointOnCubeFace(direction, divisions, x+1, y).add(position));
-        vericies.push(getPointOnCubeFace(direction, divisions, x, y+1).add(position));
+        vericies.push(getPointOnCubeFace(direction, divisions, x, y));
+        vericies.push(getPointOnCubeFace(direction, divisions, x+1, y));
+        vericies.push(getPointOnCubeFace(direction, divisions, x, y+1));
 
-        vericies.push(getPointOnCubeFace(direction, divisions, x+1, y).add(position));
-        vericies.push(getPointOnCubeFace(direction, divisions, x+1, y+1).add(position));
-        vericies.push(getPointOnCubeFace(direction, divisions, x, y+1).add(position));
+        vericies.push(getPointOnCubeFace(direction, divisions, x+1, y));
+        vericies.push(getPointOnCubeFace(direction, divisions, x+1, y+1));
+        vericies.push(getPointOnCubeFace(direction, divisions, x, y+1));
       }
     }
   })

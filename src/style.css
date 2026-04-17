@@ -108,7 +108,10 @@ canvas
   padding: 5px;
 
   display: flex;
+  flex-wrap: wrap;
   gap: 10px;
+  height: 355px;
+  overflow: auto;
 }
 
 .body label

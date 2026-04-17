@@ -22,8 +22,9 @@ document.querySelector<HTMLDivElement>("#app")!.innerHTML = `
 `;
 
 const root = await tgpu.init();
+let frame = 0;
 
-export let GRAVITY_MULTIPLIER = 1e-9;
+export let GRAVITY_MULTIPLIER = 0.04;
 export function SetGravityMultiplier(newG: number) {
   GRAVITY_MULTIPLIER = newG;
 }
@@ -33,12 +34,22 @@ function calculateStableOrbitVelocity(distance: number, mass: number) {
   return std.sqrt((GRAVITY_MULTIPLIER * mass) / distance);
 }
 
-const ORBIT_POINTS = 5000;
+const ORBIT_POINTS = 20000;
 const ORBIT_POINTS_CONST = tgpu.const(d.i32, ORBIT_POINTS);
 
-export const INITIAL_BODIES = d.arrayOf(CelestianBody, 2)([
-  { position: d.vec3f(0, 0, 0), radius: 10, color: d.vec4f(1, 0, 0, 1), initialVelocity: d.vec3f(0 ,0 ,0), mass: 10000000 },
-  { position: d.vec3f(100, 0, 0), radius: 5, color: d.vec4f(0, 1, 0, 1), initialVelocity: d.vec3f(0,0,calculateStableOrbitVelocity(10, 10000000)), mass: 100 },
+export const INITIAL_BODIES = d.arrayOf(CelestianBody, 10)([
+  // Sun
+  { position: d.vec3f(0, 0, 0), radius: 14, color: d.vec4f(1.0, 0.85, 0.2, 1), initialVelocity: d.vec3f(0, 0, 0), mass: 1.0 },
+
+  { position: d.vec3f(38.7, 0, 0), radius: 0.96, color: d.vec4f(0.72, 0.67, 0.62, 1), initialVelocity: d.vec3f(0, 0, 0.0321), mass: 1.66e-7 }, // Mercury
+  { position: d.vec3f(72.3, 0, 0), radius: 2.37, color: d.vec4f(0.95, 0.75, 0.42, 1), initialVelocity: d.vec3f(0, 0, 0.0235), mass: 2.45e-6 }, // Venus
+  { position: d.vec3f(100, 0, 0), radius: 2.5, color: d.vec4f(0.30, 0.60, 1.00, 1), initialVelocity: d.vec3f(0, 0, 0.0200), mass: 3.00e-6 }, // Earth
+  { position: d.vec3f(100, 6, 0), radius: 0.68, color: d.vec4f(0.80, 0.80, 0.84, 1), initialVelocity: d.vec3f(0.000141, 0, 0.0200), mass: 3.69e-8 }, // Moon
+  { position: d.vec3f(152.4, 0, 0), radius: 1.33, color: d.vec4f(0.89, 0.40, 0.24, 1), initialVelocity: d.vec3f(0, 0, 0.0162), mass: 3.23e-7 }, // Mars
+  { position: d.vec3f(520.3, 0, 0), radius: 8.5, color: d.vec4f(0.83, 0.66, 0.43, 1), initialVelocity: d.vec3f(0, 0, 0.00877), mass: 9.54e-4 }, // Jupiter
+  { position: d.vec3f(958.2, 0, 0), radius: 7.1, color: d.vec4f(0.85, 0.79, 0.62, 1), initialVelocity: d.vec3f(0, 0, 0.00646), mass: 2.86e-4 }, // Saturn
+  { position: d.vec3f(1918, 0, 0), radius: 5.0, color: d.vec4f(0.52, 0.82, 0.91, 1), initialVelocity: d.vec3f(0, 0, 0.00457), mass: 4.37e-5 }, // Uranus
+  { position: d.vec3f(3007, 0, 0), radius: 4.9, color: d.vec4f(0.28, 0.44, 0.93, 1), initialVelocity: d.vec3f(0, 0, 0.00365), mass: 5.15e-5 }, // Neptune
 ]);
 const BODY_COUNT_CONST = tgpu.const(d.i32, INITIAL_BODIES.length);
 
@@ -52,7 +63,7 @@ const { updatePosition } = setupFirstPersonCamera(
   canvas,
   {
     initPos: d.vec3f(0, 0, -25),
-    speed: d.vec3f(0.001, 0.1, 1),
+    speed: d.vec3f(0.1, 1, 10),
   },
   (props) => {
     cameraUniform.patch(props);
@@ -192,15 +203,15 @@ export function SetUpBuffersAndData() {
     const verticies = tgpu.const(d.arrayOf(d.vec4f, sphere.getVertexAmount(SPHERE_DIVISIONS)), sphere.generateSphere(SPHERE_DIVISIONS));
     data.push({ mainRenderPipeline, verticies, orbitRenderPipeline });
   });
+
+  frame = 0;
 }
 
 SetUpBuffersAndData();
 
-
 const bodiesVelocityPipeline = root.createGuardedComputePipeline((i)=>{
   'use gpu';
   const currentPosition = computeLayout.$.offsets[i];
-  const currentMass = computeLayout.$.masses[i];
 
   let newVelocity = d.vec3f(0, 0, 0);
 
@@ -211,7 +222,7 @@ const bodiesVelocityPipeline = root.createGuardedComputePipeline((i)=>{
     const otherPosition = computeLayout.$.offsets[x]
     const otherMass = computeLayout.$.masses[x]
     const distance = std.distance(currentPosition, otherPosition);
-    const gravityForce =  computeLayout.$.gravityMultiplier * ((currentMass * otherMass) / (distance * distance));
+    const gravityForce =  computeLayout.$.gravityMultiplier * (otherMass / (distance * distance));
     const direction = std.normalize(otherPosition.sub(currentPosition));
     newVelocity = newVelocity.add(direction.mul(gravityForce));
   }
@@ -236,7 +247,6 @@ const orbitComputeVelocityPipeline = root.createGuardedComputePipeline((i)=>{
     let newVelocity = d.vec3f(0, 0, 0);
 
     const currentPosition = orbitComputeLayout.$.offsets[i];
-    const currentMass = orbitComputeLayout.$.masses[i];
 
       for(let x = 0; x < INITIAL_BODIES.length; x++)
       {
@@ -245,7 +255,7 @@ const orbitComputeVelocityPipeline = root.createGuardedComputePipeline((i)=>{
         const otherPosition = orbitComputeLayout.$.offsets[x];
         const otherMass = orbitComputeLayout.$.masses[x];
         const distance = std.distance(currentPosition, otherPosition);
-        const gravityForce =  orbitComputeLayout.$.gravityMultiplier * ((currentMass * otherMass) / (distance * distance));
+        const gravityForce =  orbitComputeLayout.$.gravityMultiplier * (otherMass / (distance * distance));
         const direction = std.normalize(otherPosition.sub(currentPosition));
         newVelocity = newVelocity.add(direction.mul(gravityForce));
       }
@@ -289,27 +299,24 @@ const orbitComputeBindGroup = root.createBindGroup(orbitComputeLayout, {
   gravityMultiplier: gravityMultiplierBuffer,
 })
 
-let frame = 0;
-
-    for(let i = 0; i < ORBIT_POINTS; i++)
-    {
-      orbitPointIndexBuffer.patch(i);
-      orbitComputeVelocityPipeline.with(orbitComputeBindGroup).dispatchThreads(INITIAL_BODIES.length);
-    }
+function predictOrbits()
+{
+  for(let i = 0; i < ORBIT_POINTS; i++)
+  {
+    orbitPointIndexBuffer.patch(i);
+    orbitComputeVelocityPipeline.with(orbitComputeBindGroup).dispatchThreads(INITIAL_BODIES.length);
+    orbitComputeOffsetPipeline.with(orbitComputeBindGroup).dispatchThreads(INITIAL_BODIES.length);
+  }
+}
 
 function render()
 {
   bodiesVelocityPipeline.with(mainComputeBindGroup).dispatchThreads(INITIAL_BODIES.length);
   bodiesOffsetPipeline.with(mainComputeBindGroup).dispatchThreads(INITIAL_BODIES.length);
 
-  if(frame % 1000 === 0)
+  if(frame % (ORBIT_POINTS/2) === 0)
   {
-    for(let i = 0; i < ORBIT_POINTS; i++)
-    {
-      orbitPointIndexBuffer.patch(i);
-      orbitComputeVelocityPipeline.with(orbitComputeBindGroup).dispatchThreads(INITIAL_BODIES.length);
-      orbitComputeOffsetPipeline.with(orbitComputeBindGroup).dispatchThreads(INITIAL_BODIES.length);
-    }
+    predictOrbits();
   }
 
 
@@ -331,7 +338,7 @@ function render()
       withColorAttachment({ view: context, loadOp: "load", clearValue: { r: 0, g: 0, b: 0, a: 1 } }).
       // withDepthStencilAttachment({ 
       //   view: depthTexture, 
-      //   depthLoadOp: i === 0 ? "clear" : "load",
+      //   depthLoadOp: "load",
       //   depthClearValue: 1, 
       //   depthStoreOp: "store"
       // }).

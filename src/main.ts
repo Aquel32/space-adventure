@@ -1,5 +1,5 @@
 // oxlint-disable-next-line no-unassigned-import
-import { cos, sin, step } from "typegpu/std";
+import { cos, select, sin, step } from "typegpu/std";
 import { Camera, setupFirstPersonCamera } from "./setup-first-person-camera";
 import "./style.css";
 import tgpu, { common, d, std, type TgpuBindGroup, type TgpuBuffer, type TgpuBufferMutable, type TgpuBufferUniform, type TgpuConst, type TgpuGuardedComputePipeline, type TgpuMutable, type TgpuRenderPipeline, type TgpuUniform } from "typegpu";
@@ -151,23 +151,49 @@ export function SetUpBuffersAndData() {
     const mainRenderPipeline = root.createRenderPipeline({
       vertex:  tgpu.vertexFn({
         in: {vid:d.builtin.vertexIndex}, 
-        out:{position: d.builtin.position, groundColor: d.vec4f, normal: d.vec4f, vid: d.interpolate("flat", d.i32)}})(({vid})=>{
+        out:{position: d.builtin.position, point:d.vec3f, cameraPos: d.interpolate("flat", d.vec3f), emits:d.interpolate("flat", d.i32), sunPosition: d.vec3f, groundColor: d.vec4f, normal: d.vec4f, vid: d.interpolate("flat", d.i32)}})(({vid})=>{
           'use gpu';
           const camera = cameraUniform.$;
           const offset = mainLayout.$.offsets[mainLayout.$.currentBodyIndex];
           const normal = verticies.$[vid];
           const point = normal.xyz.mul(body.radius).add(offset);
           const position = camera.projection.mul(camera.view).mul(d.vec4f(point, 1));
+          const sunPosition = mainLayout.$.offsets[0];
+      
+          let emits = 0;
+          if(mainLayout.$.currentBodyIndex === 0)
+          {
+            emits = 1;
+          }
+          
           return {
             position: position,
             groundColor: body.color,
             normal: normal,
             vid,
+            point,
+            sunPosition,
+            emits,
+            cameraPos: camera.pos.xyz
           };
         }),
-      fragment: ({ groundColor, normal, vid }) => {
+      fragment: ({ groundColor, normal, vid, sunPosition, point, emits, cameraPos }) => {
         'use gpu';
-        return std.abs(normal);
+        if(emits === 1)
+        {
+          return groundColor;
+        }
+
+        const surfaceToLightDirection = std.normalize(sunPosition.sub(point));
+        const light = std.dot(normal.xyz, surfaceToLightDirection);
+        
+        const surfaceToViewDirection = std.normalize(cameraPos.sub(point));
+        const halfVector = std.normalize(surfaceToLightDirection.add(surfaceToViewDirection));
+        let specular = std.dot(normal.xyz, halfVector);
+
+        specular = select(0.0, std.pow(specular, 20), specular > 0);
+
+        return groundColor.mul(light) + specular;
       },
       depthStencil: {
         format: "depth24plus",

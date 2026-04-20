@@ -1,4 +1,5 @@
-import { GRAVITY_MULTIPLIER, INITIAL_BODIES, SetGravityMultiplier, SetUpBuffersAndData } from "./main";
+import { SetUpBuffersAndData } from "./main";
+import { GRAVITY_MULTIPLIER, INITIAL_BODIES, SetGravityMultiplier } from "./simulation-data";
 
 let controlsReady = false;
 

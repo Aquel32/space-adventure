@@ -6,14 +6,7 @@ import tgpu, { common, d, std, type TgpuBindGroup, type TgpuBuffer, type TgpuBuf
 import { i32, type v3f, type v4f } from "typegpu/data";
 import * as sphere from "./sphere";
 import { SetUpControls } from "./ui-controls";
-
-const CelestianBody = d.struct({
-  position: d.vec3f,
-  radius: d.f32,
-  color: d.vec4f,
-  initialVelocity: d.vec3f,
-  mass: d.f32,
-})
+import { CelestianBody, GRAVITY_MULTIPLIER, INITIAL_BODIES } from "./simulation-data";
 
 document.querySelector<HTMLDivElement>("#app")!.innerHTML = `
 <main>
@@ -24,33 +17,13 @@ document.querySelector<HTMLDivElement>("#app")!.innerHTML = `
 const root = await tgpu.init();
 let frame = 0;
 
-export let GRAVITY_MULTIPLIER = 0.04;
-export function SetGravityMultiplier(newG: number) {
-  GRAVITY_MULTIPLIER = newG;
-}
+
 const gravityMultiplierBuffer = root.createBuffer(d.f32).$usage("storage", "uniform");
 
-function calculateStableOrbitVelocity(distance: number, mass: number) {
-  return std.sqrt((GRAVITY_MULTIPLIER * mass) / distance);
-}
-
-const ORBIT_POINTS = 20000;
+const ORBIT_POINTS = 10000;
 const ORBIT_POINTS_CONST = tgpu.const(d.i32, ORBIT_POINTS);
 
-export const INITIAL_BODIES = d.arrayOf(CelestianBody, 10)([
-  // Sun
-  { position: d.vec3f(0, 0, 0), radius: 14, color: d.vec4f(1.0, 0.85, 0.2, 1), initialVelocity: d.vec3f(0, 0, 0), mass: 1.0 },
 
-  { position: d.vec3f(38.7, 0, 0), radius: 0.96, color: d.vec4f(0.72, 0.67, 0.62, 1), initialVelocity: d.vec3f(0, 0, 0.0321), mass: 1.66e-7 }, // Mercury
-  { position: d.vec3f(72.3, 0, 0), radius: 2.37, color: d.vec4f(0.95, 0.75, 0.42, 1), initialVelocity: d.vec3f(0, 0, 0.0235), mass: 2.45e-6 }, // Venus
-  { position: d.vec3f(100, 0, 0), radius: 2.5, color: d.vec4f(0.30, 0.60, 1.00, 1), initialVelocity: d.vec3f(0, 0, 0.0200), mass: 3.00e-6 }, // Earth
-  { position: d.vec3f(100, 6, 0), radius: 0.68, color: d.vec4f(0.80, 0.80, 0.84, 1), initialVelocity: d.vec3f(0.000141, 0, 0.0200), mass: 3.69e-8 }, // Moon
-  { position: d.vec3f(152.4, 0, 0), radius: 1.33, color: d.vec4f(0.89, 0.40, 0.24, 1), initialVelocity: d.vec3f(0, 0, 0.0162), mass: 3.23e-7 }, // Mars
-  { position: d.vec3f(520.3, 0, 0), radius: 8.5, color: d.vec4f(0.83, 0.66, 0.43, 1), initialVelocity: d.vec3f(0, 0, 0.00877), mass: 9.54e-4 }, // Jupiter
-  { position: d.vec3f(958.2, 0, 0), radius: 7.1, color: d.vec4f(0.85, 0.79, 0.62, 1), initialVelocity: d.vec3f(0, 0, 0.00646), mass: 2.86e-4 }, // Saturn
-  { position: d.vec3f(1918, 0, 0), radius: 5.0, color: d.vec4f(0.52, 0.82, 0.91, 1), initialVelocity: d.vec3f(0, 0, 0.00457), mass: 4.37e-5 }, // Uranus
-  { position: d.vec3f(3007, 0, 0), radius: 4.9, color: d.vec4f(0.28, 0.44, 0.93, 1), initialVelocity: d.vec3f(0, 0, 0.00365), mass: 5.15e-5 }, // Neptune
-]);
 const BODY_COUNT_CONST = tgpu.const(d.i32, INITIAL_BODIES.length);
 
 SetUpControls();
@@ -62,8 +35,8 @@ const cameraUniform = root.createUniform(Camera);
 const { updatePosition } = setupFirstPersonCamera(
   canvas,
   {
-    initPos: d.vec3f(0, 0, -25),
-    speed: d.vec3f(0.1, 1, 10),
+    initPos: d.vec3f(100, 0, 0),
+    speed: d.vec3f(0.1, 0.5, 5),
   },
   (props) => {
     cameraUniform.patch(props);
@@ -377,5 +350,6 @@ function render()
   frame++;
   requestAnimationFrame(render);
 }
+
 
 requestAnimationFrame(render);

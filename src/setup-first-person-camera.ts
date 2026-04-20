@@ -1,5 +1,5 @@
-import * as m from 'wgpu-matrix';
-import { d, std } from 'typegpu';
+import * as m from "wgpu-matrix";
+import { d, std } from "typegpu";
 
 export const Camera = d.struct({
   pos: d.vec4f,
@@ -91,19 +91,19 @@ export function setupFirstPersonCamera(
   const keyDownEventListener = (event: KeyboardEvent) => {
     pressedKeys.add(event.key.toLowerCase());
   };
-  window.addEventListener('keydown', keyDownEventListener);
+  window.addEventListener("keydown", keyDownEventListener);
 
   const keyUpEventListener = (event: KeyboardEvent) => {
     pressedKeys.delete(event.key.toLowerCase());
   };
-  window.addEventListener('keyup', keyUpEventListener);
+  window.addEventListener("keyup", keyUpEventListener);
 
   // mouse events
-  canvas.addEventListener('mousedown', () => {
+  canvas.addEventListener("mousedown", () => {
     void canvas.requestPointerLock();
   });
 
-  canvas.addEventListener('mousemove', (event: MouseEvent) => {
+  canvas.addEventListener("mousemove", (event: MouseEvent) => {
     if (document.pointerLockElement !== canvas) {
       return;
     }
@@ -113,7 +113,7 @@ export function setupFirstPersonCamera(
   });
 
   canvas.addEventListener(
-    'wheel',
+    "wheel",
     (e) => {
       e.preventDefault();
       moveSpeed = std.clamp(moveSpeed * (1 - e.deltaY * 0.0005), options.speed.x, options.speed.z);
@@ -122,8 +122,8 @@ export function setupFirstPersonCamera(
   );
 
   function cleanupCamera() {
-    window.removeEventListener('keydown', keyDownEventListener);
-    window.removeEventListener('keyup', keyUpEventListener);
+    window.removeEventListener("keydown", keyDownEventListener);
+    window.removeEventListener("keyup", keyUpEventListener);
     resizeObserver.unobserve(canvas);
   }
 
@@ -138,22 +138,22 @@ export function setupFirstPersonCamera(
       .mul(moveSpeed);
     const left = d.vec3f(forward.z, 0, -forward.x);
 
-    if (pressedKeys.has('w')) {
+    if (pressedKeys.has("w")) {
       cameraState.pos = cameraState.pos.add(forward);
     }
-    if (pressedKeys.has('s')) {
+    if (pressedKeys.has("s")) {
       cameraState.pos = cameraState.pos.sub(forward);
     }
-    if (pressedKeys.has('a')) {
+    if (pressedKeys.has("a")) {
       cameraState.pos = cameraState.pos.add(left);
     }
-    if (pressedKeys.has('d')) {
+    if (pressedKeys.has("d")) {
       cameraState.pos = cameraState.pos.sub(left);
     }
-    if (pressedKeys.has('shift')) {
+    if (pressedKeys.has("shift")) {
       cameraState.pos.y -= moveSpeed;
     }
-    if (pressedKeys.has(' ')) {
+    if (pressedKeys.has(" ")) {
       cameraState.pos.y += moveSpeed;
     }
     runCallback();

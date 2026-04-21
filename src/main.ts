@@ -32,6 +32,13 @@ let frame = 0;
 
 const gravityMultiplierBuffer = root.createBuffer(d.f32).$usage("storage", "uniform");
 
+export const PIXEL_SCALE_BUFFER = root.createUniform(d.f32);
+PIXEL_SCALE_BUFFER.write(1);
+export let GAUSIAN_ITERATIONS = d.f32(3);
+export function SetBlurIterations(newbi: number) {
+  GAUSIAN_ITERATIONS = newbi;
+}
+
 const ORBIT_POINTS = 10000;
 const ORBIT_POINTS_CONST = tgpu.const(d.i32, ORBIT_POINTS);
 
@@ -47,7 +54,7 @@ const { updatePosition } = setupFirstPersonCamera(
   canvas,
   {
     initPos: d.vec3f(100, 0, 0),
-    speed: d.vec3f(0.1, 0.5, 5),
+    speed: d.vec3f(0.01, 0.1, 5),
   },
   (props) => {
     cameraUniform.patch(props);
@@ -187,7 +194,7 @@ export function SetUpBuffersAndData() {
         if (emits === 1) {
           return {
             color: groundColor,
-            emission: d.vec4f(emits, 0, 0, 0),
+            emission: groundColor,
           };
         }
 
@@ -197,12 +204,19 @@ export function SetUpBuffersAndData() {
         const surfaceToViewDirection = std.normalize(cameraPos.sub(point));
         const halfVector = std.normalize(surfaceToLightDirection.add(surfaceToViewDirection));
         let specular = std.dot(normal.xyz, halfVector);
+        specular = select(0.0, std.pow(specular, 90), specular > 0);
+        const finalColor = groundColor.mul(light) + 0;
 
-        specular = select(0.0, std.pow(specular, 20), specular > 0);
+        let emission = d.vec4f(0, 0, 0, 1);
+        const treshold = 0.8;
+
+        if (finalColor.r > treshold || finalColor.g > treshold || finalColor.b > treshold) {
+          emission = d.vec4f(finalColor);
+        }
 
         return {
-          color: groundColor.mul(light) + specular,
-          emission: d.vec4f(emits, 0, 0, 0),
+          color: finalColor,
+          emission,
         };
       },
       depthStencil: {
@@ -211,8 +225,7 @@ export function SetUpBuffersAndData() {
         depthCompare: "less",
       },
       targets: {
-        color: { format: "rgba8unorm" },
-        emission: { format: "r8unorm" },
+        emission: { format: "rgba8unorm" },
       },
     });
 
@@ -364,7 +377,7 @@ const postProccessSampler = root.createSampler({
 const emmisionTexture = root
   .createTexture({
     size: [canvas.width, canvas.height, 1],
-    format: "r8unorm",
+    format: "rgba8unorm",
   })
   .$usage("render", "sampled");
 
@@ -387,7 +400,7 @@ const postProccessBindGroup = root.createBindGroup(postProccessBindGroupLayout, 
   sampler: postProccessSampler,
 });
 
-const postProccessRenderPipeline = root.createRenderPipeline({
+const blurRenderPipeline = root.createRenderPipeline({
   vertex: tgpu.vertexFn({
     in: { vid: d.builtin.vertexIndex },
     out: { position: d.builtin.position, uv: d.vec2f },
@@ -410,18 +423,15 @@ const postProccessRenderPipeline = root.createRenderPipeline({
   }),
   fragment: ({ uv }) => {
     "use gpu";
-    const weights = [0.227027, 0.2, 0.2, 0.2, 0.2, 0.2, 0.1945946, 0.1216216, 0.05, 0.05, 0.05, 0.054054, 0.016216, 0.012, 0.012, 0.012, 0.012, 0.012, 0.002];
+    // const weights = [0.227027, 0.1945946, 0.16, 0.1216216, 0.09, 0.07, 0.054054, 0.04, 0.03, 0.02, 0.016216, 0.012, 0.01, 0.007];
+    const weights = [0.227027, 0.1945946, 0.1216216, 0.054054, 0.016216];
 
-    const pixelSize = 1.0 / std.textureDimensions(postProccessBindGroupLayout.$.targetTexture).x;
-    const emits = std.textureSample(
-      postProccessBindGroupLayout.$.emissionTexture,
-      postProccessBindGroupLayout.$.sampler,
-      uv,
-    ).r;
+    let pixelSize = 1.0 / std.textureDimensions(postProccessBindGroupLayout.$.emissionTexture).x;
+    pixelSize *= PIXEL_SCALE_BUFFER.$;
 
     let result = std
       .textureSample(
-        postProccessBindGroupLayout.$.targetTexture,
+        postProccessBindGroupLayout.$.emissionTexture,
         postProccessBindGroupLayout.$.sampler,
         uv,
       )
@@ -429,22 +439,18 @@ const postProccessRenderPipeline = root.createRenderPipeline({
     const dpdx = std.dpdx(uv);
     const dpdy = std.dpdy(uv);
 
-    if (emits < 1) {
-      return result;
-    }
-
     let sum = d.f32(0);
 
     result *= weights[0];
-    for (let i = -weights.length; i < weights.length; i++) {
-      for (let j = -weights.length; j < weights.length; j++) {
+    for (let i = -weights.length + 1; i < weights.length; i++) {
+      for (let j = -weights.length + 1; j < weights.length; j++) {
         sum += weights[std.abs(i)] * weights[std.abs(j)];
 
         if (i === 0 && j === 0) continue;
 
         result += std
           .textureSampleGrad(
-            postProccessBindGroupLayout.$.targetTexture,
+            postProccessBindGroupLayout.$.emissionTexture,
             postProccessBindGroupLayout.$.sampler,
             uv.add(d.vec2f(pixelSize * i, pixelSize * j)),
             dpdx,
@@ -453,53 +459,42 @@ const postProccessRenderPipeline = root.createRenderPipeline({
           .mul(weights[std.abs(i)] * weights[std.abs(j)]);
       }
     }
+
     return result / sum;
 
-    // for (let i = 1; i < weights.length; i++) {
-    //   result += std
-    //     .textureSampleGrad(
-    //       postProccessBindGroupLayout.$.targetTexture,
-    //       postProccessBindGroupLayout.$.sampler,
-    //       uv.add(d.vec2f(pixelSize * i, 0)),
-    //       dpdx,
-    //       dpdy,
-    //     )
-    //     .mul(weights[i]);
-    //   result += std
-    //     .textureSampleGrad(
-    //       postProccessBindGroupLayout.$.targetTexture,
-    //       postProccessBindGroupLayout.$.sampler,
-    //       uv.sub(d.vec2f(pixelSize * i, 0)),
-    //       dpdx,
-    //       dpdy,
-    //     )
-    //     .mul(weights[i]);
-    // }
-
-    // for (let i = 1; i < weights.length; i++) {
-    //   result += std
-    //     .textureSampleGrad(
-    //       postProccessBindGroupLayout.$.targetTexture,
-    //       postProccessBindGroupLayout.$.sampler,
-    //       uv.add(d.vec2f(0, pixelSize * i)),
-    //       dpdx,
-    //       dpdy,
-    //     )
-    //     .mul(weights[i]);
-    //   result += std
-    //     .textureSampleGrad(
-    //       postProccessBindGroupLayout.$.targetTexture,
-    //       postProccessBindGroupLayout.$.sampler,
-    //       uv.sub(d.vec2f(0, pixelSize * i)),
-    //       dpdx,
-    //       dpdy,
-    //     )
-    //     .mul(weights[i]);
-    // }
-
   },
-  targets: { format: "rgba8unorm" },
+  targets: {
+    format: "rgba8unorm",
+  },
 });
+
+const currentBlurPassTarget = root
+  .createTexture({
+    size: [canvas.width, canvas.height, 1],
+    format: "rgba8unorm",
+  })
+  .$usage("render", "sampled");
+
+const currentBlurPassBindGroup = root.createBindGroup(postProccessBindGroupLayout, {
+  targetTexture: postProccessTarget,
+  emissionTexture: currentBlurPassTarget,
+  sampler: postProccessSampler,
+});
+
+function gausianBlur(passes: number) {
+  for (let i = 0; i < passes; i++) {
+    blurRenderPipeline
+      .withColorAttachment({
+        view: i % 2 === 0 ? currentBlurPassTarget : emmisionTexture,
+        loadOp: "load",
+        clearValue: { r: 0, g: 0, b: 0, a: 1 },
+      })
+      .with(i % 2 === 0 ? postProccessBindGroup : currentBlurPassBindGroup)
+      .draw(6, 1);
+  }
+
+  return passes % 2 === 1 ? currentBlurPassBindGroup : postProccessBindGroup;
+}
 
 const finalRenderPipeline = root.createRenderPipeline({
   vertex: tgpu.vertexFn({
@@ -525,47 +520,33 @@ const finalRenderPipeline = root.createRenderPipeline({
   fragment: ({ uv }) => {
     "use gpu";
     return std.textureSample(
-      postProccessBindGroupLayout.$.targetTexture,
+      postProccessBindGroupLayout.$.emissionTexture,
       postProccessBindGroupLayout.$.sampler,
       uv,
     );
   },
+  // targets: {
+  //   blend: {
+  //     color: {
+  //       srcFactor: "one",
+  //       dstFactor: "one",
+  //       operation: "add",
+  //     },
+  //     alpha: {
+  //       srcFactor: "one",
+  //       dstFactor: "one",
+  //       operation: "add",
+  //     }
+  //   },
+  // }
 });
 
-function gausianBlur(passes: number) {
-  const currentPassTarget = root
-    .createTexture({
-      size: [canvas.width, canvas.height, 1],
-      format: "rgba8unorm",
-    })
-    .$usage("render", "sampled");
-
-  const currentPassBindGroup = root.createBindGroup(postProccessBindGroupLayout, {
-    targetTexture: currentPassTarget,
-    emissionTexture: emmisionTexture,
-    sampler: postProccessSampler,
-  });
-  3
-  for (let i = 0; i < passes; i++) {
-    currentPassTarget.copyFrom(postProccessTarget);
-
-    postProccessRenderPipeline
-      .withColorAttachment({
-        view: postProccessTarget,
-        loadOp: "load",
-        clearValue: { r: 0, g: 0, b: 0, a: 1 },
-      })
-      .with(currentPassBindGroup)
-      .draw(6, 1);
-  }
-}
-
 function render() {
-  bodiesVelocityPipeline.with(mainComputeBindGroup).dispatchThreads(INITIAL_BODIES.length);
-  bodiesOffsetPipeline.with(mainComputeBindGroup).dispatchThreads(INITIAL_BODIES.length);
+  // bodiesVelocityPipeline.with(mainComputeBindGroup).dispatchThreads(INITIAL_BODIES.length);
+  // bodiesOffsetPipeline.with(mainComputeBindGroup).dispatchThreads(INITIAL_BODIES.length);
 
   if (frame % (ORBIT_POINTS / 2) === 0) {
-    predictOrbits();
+    // predictOrbits();
   }
 
   data.forEach(async (item, i) => {
@@ -574,7 +555,7 @@ function render() {
     item.mainRenderPipeline
       .withColorAttachment({
         color: {
-          view: postProccessTarget,
+          view: context,
           loadOp: i === 0 ? "clear" : "load",
           clearValue: { r: 0, g: 0, b: 0, a: 1 },
         },
@@ -589,23 +570,23 @@ function render() {
       .with(mainRenderBindGroup)
       .draw(item.verticies.$.length, 1);
 
-    item.orbitRenderPipeline.
-      withColorAttachment({ view: context, loadOp: i === 0 ? "clear" : "load", clearValue: { r: 0, g: 0, b: 0, a: 1 } }).
-      // withDepthStencilAttachment({
-      //   view: depthTexture,
-      //   depthLoadOp: "load",
-      //   depthClearValue: 1,
-      //   depthStoreOp: "store"
-      // }).
-      with(orbitRenderBindGroup).
-      draw(ORBIT_POINTS, 1);
+    // item.orbitRenderPipeline.
+    //   withColorAttachment({ view: context, loadOp: i === 0 ? "clear" : "load", clearValue: { r: 0, g: 0, b: 0, a: 1 } }).
+    //   // withDepthStencilAttachment({
+    //   //   view: depthTexture,
+    //   //   depthLoadOp: "load",
+    //   //   depthClearValue: 1,
+    //   //   depthStoreOp: "store"
+    //   // }).
+    //   with(orbitRenderBindGroup).
+    //   draw(ORBIT_POINTS, 1);
   });
 
-  gausianBlur(5);
+  const finalBindGroup = gausianBlur(GAUSIAN_ITERATIONS);
 
   finalRenderPipeline
     .withColorAttachment({ view: context, loadOp: "load", clearValue: { r: 0, g: 0, b: 0, a: 1 } })
-    .with(postProccessBindGroup)
+    .with(finalBindGroup)
     .draw(6, 1);
 
   updatePosition();

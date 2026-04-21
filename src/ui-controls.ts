@@ -1,4 +1,4 @@
-import { SetUpBuffersAndData } from "./main";
+import { GAUSIAN_ITERATIONS, PIXEL_SCALE_BUFFER, SetBlurIterations, SetUpBuffersAndData } from "./main";
 import { GRAVITY_MULTIPLIER, INITIAL_BODIES, SetGravityMultiplier } from "./simulation-data";
 
 let controlsReady = false;
@@ -7,10 +7,14 @@ export function SetUpControls() {
   if (controlsReady) return;
 
   document.querySelector("main")!.innerHTML += `<section id="controls">
-        <label>G: <input type="number" class="g" value="${GRAVITY_MULTIPLIER}" /></label>
+        <div class="main-controls">
+          <label>G: <input type="number" class="g" value="${GRAVITY_MULTIPLIER}" /></label>
+          <label>BI: <input type="number" class="bi" value="${GAUSIAN_ITERATIONS}" /></label>
+          <label>PS: <input type="number" class="ps" value="${2}" /></label>
+        </div>
         <div class="body-controls">
         ${INITIAL_BODIES.map(
-          (body, i) => `
+    (body, i) => `
             <div class="body">
                 <h2>Body ${i}</h2>
                 <label>Mass: <input type="number" class="mass" value="${body.mass}" /></label>
@@ -27,13 +31,23 @@ export function SetUpControls() {
                 </label>
             </div>
         `,
-        ).join("")}
+  ).join("")}
         </div>
     <section>`;
 
   document.querySelector(".g")!.addEventListener("change", (e) => {
     const newG = parseFloat((e.target as HTMLInputElement).value);
     SetGravityMultiplier(newG);
+  });
+
+  document.querySelector(".bi")!.addEventListener("change", (e) => {
+    const newbi = parseFloat((e.target as HTMLInputElement).value);
+    SetBlurIterations(newbi);
+  });
+
+  document.querySelector(".ps")!.addEventListener("change", (e) => {
+    const newG = parseFloat((e.target as HTMLInputElement).value);
+    PIXEL_SCALE_BUFFER.write(newG);
   });
 
   document.querySelectorAll(".body").forEach((control, i) => {

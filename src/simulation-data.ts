@@ -134,7 +134,7 @@ export const INITIAL_BODIES = d.arrayOf(
   {
     position: d.vec3f(72.3, 0, 0),
     radius: VENUS_RENDER_RADIUS,
-    color: d.vec4f(0.95, 0.75, 0.42, 1),
+    color: d.vec4f(0.75, 0.55, 0.22, 1),
     initialVelocity: VENUS_INITIAL_VELOCITY,
     mass: VENUS_MASS,
   }, // Venus
@@ -155,35 +155,35 @@ export const INITIAL_BODIES = d.arrayOf(
   {
     position: d.vec3f(152.4, 0, 0),
     radius: MARS_RENDER_RADIUS,
-    color: d.vec4f(0.89, 0.4, 0.24, 1),
+    color: d.vec4f(0.79, 0.3, 0.14, 1),
     initialVelocity: MARS_INITIAL_VELOCITY,
     mass: MARS_MASS,
   }, // Mars
   {
     position: d.vec3f(520.3, 0, 0),
     radius: JUPITER_RENDER_RADIUS,
-    color: d.vec4f(0.83, 0.66, 0.43, 1),
+    color: d.vec4f(0.73, 0.56, 0.33, 1),
     initialVelocity: JUPITER_INITIAL_VELOCITY,
     mass: JUPITER_MASS,
   }, // Jupiter
   {
     position: d.vec3f(958.2, 0, 0),
     radius: SATURN_RENDER_RADIUS,
-    color: d.vec4f(0.85, 0.79, 0.62, 1),
+    color: d.vec4f(0.75, 0.69, 0.52, 1),
     initialVelocity: SATURN_INITIAL_VELOCITY,
     mass: SATURN_MASS,
   }, // Saturn
   {
     position: d.vec3f(1918, 0, 0),
     radius: URANUS_RENDER_RADIUS,
-    color: d.vec4f(0.52, 0.82, 0.91, 1),
+    color: d.vec4f(0.32, 0.62, 0.71, 1),
     initialVelocity: URANUS_INITIAL_VELOCITY,
     mass: URANUS_MASS,
   }, // Uranus
   {
     position: d.vec3f(3007, 0, 0),
     radius: NEPTUNE_RENDER_RADIUS,
-    color: d.vec4f(0.28, 0.44, 0.93, 1),
+    color: d.vec4f(0.18, 0.24, 0.73, 1),
     initialVelocity: NEPTUNE_INITIAL_VELOCITY,
     mass: NEPTUNE_MASS,
   }, // Neptune

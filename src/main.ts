@@ -39,6 +39,11 @@ export function SetBlurIterations(newbi: number) {
   GAUSIAN_ITERATIONS = newbi;
 }
 
+export let RENDER_ORBITS = true;
+export function SetRenderOrbits(newRo: boolean) {
+  RENDER_ORBITS = newRo;
+}
+
 const ORBIT_POINTS = 10000;
 const ORBIT_POINTS_CONST = tgpu.const(d.i32, ORBIT_POINTS);
 
@@ -49,14 +54,13 @@ SetUpControls();
 const canvas = document.querySelector<HTMLCanvasElement>("#canvas")!;
 const context = root.configureContext({ canvas });
 
-export const attachedObjectIndexUniform = root.createUniform(i32);
-attachedObjectIndexUniform.write(3);
+const attachedObjectIndexUniform = root.createUniform(i32);
 
 const cameraBuffer = root.createBuffer(Camera).$usage("storage", "uniform");
 const cameraMutable = cameraBuffer.as("mutable");
 const cameraUniform = cameraBuffer.as("uniform");
 
-const { updatePosition } = setupFirstPersonCamera(
+const { updatePosition, setPosition } = setupFirstPersonCamera(
   canvas,
   {
     initPos: d.vec3f(0, 0, 0),
@@ -66,6 +70,14 @@ const { updatePosition } = setupFirstPersonCamera(
     cameraBuffer.patch(props);
   },
 );
+
+export function UpdateAttachedBody(newIndex: number) {
+  if (newIndex < 0 || newIndex >= INITIAL_BODIES.length) return;
+
+  attachedObjectIndexUniform.write(newIndex);
+  setPosition(d.vec3f(-INITIAL_BODIES[newIndex].radius - 1, 0, 0));
+}
+UpdateAttachedBody(3)
 
 let depthTexture = root
   .createTexture({
@@ -678,10 +690,12 @@ function render() {
     .with(postProccessBindGroup)
     .draw(6, 1);
 
-  finalOrbitRenderPipeline
-    .withColorAttachment({ view: context, loadOp: "load", clearValue: { r: 0, g: 0, b: 0, a: 1 } })
-    .with(orbitFinalRenderBindGroup)
-    .draw(6, 1);
+  if (RENDER_ORBITS) {
+    finalOrbitRenderPipeline
+      .withColorAttachment({ view: context, loadOp: "load", clearValue: { r: 0, g: 0, b: 0, a: 1 } })
+      .with(orbitFinalRenderBindGroup)
+      .draw(6, 1);
+  }
 
   frame++;
   requestAnimationFrame(render);

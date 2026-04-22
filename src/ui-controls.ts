@@ -1,4 +1,4 @@
-import { attachedObjectIndexUniform, GAUSIAN_ITERATIONS, PIXEL_SCALE_BUFFER, SetBlurIterations, SetUpBuffersAndData } from "./main";
+import { GAUSIAN_ITERATIONS, PIXEL_SCALE_BUFFER, RENDER_ORBITS, SetBlurIterations, SetRenderOrbits, SetUpBuffersAndData, UpdateAttachedBody } from "./main";
 import { GRAVITY_MULTIPLIER, INITIAL_BODIES, SetGravityMultiplier } from "./simulation-data";
 
 let controlsReady = false;
@@ -8,10 +8,11 @@ export function SetUpControls() {
 
   document.querySelector("main")!.innerHTML += `<section id="controls">
         <div class="main-controls">
-          <label>G: <input type="number" class="g" value="${GRAVITY_MULTIPLIER}" /></label>
-          <label>BI: <input type="number" class="bi" value="${GAUSIAN_ITERATIONS}" /></label>
-          <label>PS: <input type="number" class="ps" value="${1}" /></label>
-          <label>AB: <input type="number" class="ab" value="${3}" /></label>
+          <!--<label>G: <input type="number" class="g" value="${GRAVITY_MULTIPLIER}" /></label>-->
+          <label>Gaussian Iterations: <input type="number" class="bi" value="${GAUSIAN_ITERATIONS}" /></label>
+          <label>Pixel Scale: <input type="number" class="ps" value="${1}" /></label>
+          <label>Attached Body: <input type="number" class="ab" value="${3}" /></label>
+          <label>Render Orbits: <input type="checkbox" class="ro" ${RENDER_ORBITS ? "checked" : ""} /></label>
         </div>
         <div class="body-controls">
         
@@ -38,10 +39,10 @@ export function SetUpControls() {
   //       `,
   // ).join("");
 
-  document.querySelector(".g")!.addEventListener("change", (e) => {
-    const newG = parseFloat((e.target as HTMLInputElement).value);
-    SetGravityMultiplier(newG);
-  });
+  // document.querySelector(".g")!.addEventListener("change", (e) => {
+  //   const newG = parseFloat((e.target as HTMLInputElement).value);
+  //   SetGravityMultiplier(newG);
+  // });
 
   document.querySelector(".bi")!.addEventListener("change", (e) => {
     const newbi = parseFloat((e.target as HTMLInputElement).value);
@@ -55,7 +56,12 @@ export function SetUpControls() {
 
   document.querySelector(".ab")!.addEventListener("change", (e) => {
     const newAb = parseFloat((e.target as HTMLInputElement).value);
-    attachedObjectIndexUniform.write(newAb);
+    UpdateAttachedBody(newAb);
+  });
+
+  document.querySelector(".ro")!.addEventListener("change", (e) => {
+    const newRo = (e.target as HTMLInputElement).checked;
+    SetRenderOrbits(newRo);
   });
 
   document.querySelectorAll(".body").forEach((control, i) => {
@@ -101,9 +107,9 @@ export function SetUpControls() {
     });
   });
 
-  document.querySelectorAll("input").forEach((input) => {
-    input.addEventListener("change", SetUpBuffersAndData);
-  });
+  // document.querySelectorAll("input").forEach((input) => {
+  //   input.addEventListener("change", SetUpBuffersAndData);
+  // });
 
   controlsReady = true;
 }

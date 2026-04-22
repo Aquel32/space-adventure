@@ -153,8 +153,13 @@ export function setupFirstPersonCamera(
     runCallback();
   };
 
+  const setPosition = (newPosition: d.v3f) => {
+    cameraState.pos = newPosition;
+    runCallback();
+  };
+
   runCallback();
-  return { cleanupCamera, updatePosition };
+  return { cleanupCamera, updatePosition, setPosition };
 }
 
 function calculateView(position: d.v3f, target: d.v3f) {

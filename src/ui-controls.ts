@@ -10,30 +10,32 @@ export function SetUpControls() {
         <div class="main-controls">
           <label>G: <input type="number" class="g" value="${GRAVITY_MULTIPLIER}" /></label>
           <label>BI: <input type="number" class="bi" value="${GAUSIAN_ITERATIONS}" /></label>
-          <label>PS: <input type="number" class="ps" value="${2}" /></label>
+          <label>PS: <input type="number" class="ps" value="${1}" /></label>
         </div>
         <div class="body-controls">
-        ${INITIAL_BODIES.map(
-    (body, i) => `
-            <div class="body">
-                <h2>Body ${i}</h2>
-                <label>Mass: <input type="number" class="mass" value="${body.mass}" /></label>
-                <label>Radius: <input type="number" class="radius" value="${body.radius}" /></label>
-                <label>Initial Position: 
-                <input type="number" class="position-x" value="${body.position.x}" step="0.1" />
-                <input type="number" class="position-y" value="${body.position.y}" step="0.1" />
-                <input type="number" class="position-z" value="${body.position.z}" step="0.1" />
-                </label>
-                <label>Initial Velocity: 
-                <input type="number" class="velocity-x" value="${body.initialVelocity.x}" step="0.01" />
-                <input type="number" class="velocity-y" value="${body.initialVelocity.y}" step="0.01" />
-                <input type="number" class="velocity-z" value="${body.initialVelocity.z}" step="0.01" />
-                </label>
-            </div>
-        `,
-  ).join("")}
+        
         </div>
     <section>`;
+
+  // document.querySelector(".body-controls")!.innerHTML += INITIAL_BODIES.map(
+  //   (body, i) => `
+  //           <div class="body">
+  //               <h2>Body ${i}</h2>
+  //               <label>Mass: <input type="number" class="mass" value="${body.mass}" /></label>
+  //               <label>Radius: <input type="number" class="radius" value="${body.radius}" /></label>
+  //               <label>Initial Position: 
+  //               <input type="number" class="position-x" value="${body.position.x}" step="0.1" />
+  //               <input type="number" class="position-y" value="${body.position.y}" step="0.1" />
+  //               <input type="number" class="position-z" value="${body.position.z}" step="0.1" />
+  //               </label>
+  //               <label>Initial Velocity: 
+  //               <input type="number" class="velocity-x" value="${body.initialVelocity.x}" step="0.01" />
+  //               <input type="number" class="velocity-y" value="${body.initialVelocity.y}" step="0.01" />
+  //               <input type="number" class="velocity-z" value="${body.initialVelocity.z}" step="0.01" />
+  //               </label>
+  //           </div>
+  //       `,
+  // ).join("");
 
   document.querySelector(".g")!.addEventListener("change", (e) => {
     const newG = parseFloat((e.target as HTMLInputElement).value);

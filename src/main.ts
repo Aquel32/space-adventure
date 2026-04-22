@@ -34,7 +34,7 @@ const gravityMultiplierBuffer = root.createBuffer(d.f32).$usage("storage", "unif
 
 export const PIXEL_SCALE_BUFFER = root.createUniform(d.f32);
 PIXEL_SCALE_BUFFER.write(1);
-export let GAUSIAN_ITERATIONS = d.f32(3);
+export let GAUSIAN_ITERATIONS = d.f32(5);
 export function SetBlurIterations(newbi: number) {
   GAUSIAN_ITERATIONS = newbi;
 }
@@ -194,24 +194,24 @@ export function SetUpBuffersAndData() {
         if (emits === 1) {
           return {
             color: groundColor,
-            emission: groundColor,
+            emission: d.vec4f(1, 1, 1, 1),
           };
         }
 
         const surfaceToLightDirection = std.normalize(sunPosition.sub(point));
         const light = std.dot(normal.xyz, surfaceToLightDirection);
-
+        // console.log(light);
         const surfaceToViewDirection = std.normalize(cameraPos.sub(point));
         const halfVector = std.normalize(surfaceToLightDirection.add(surfaceToViewDirection));
         let specular = std.dot(normal.xyz, halfVector);
-        specular = select(0.0, std.pow(specular, 90), specular > 0);
-        const finalColor = groundColor.mul(light) + 0;
+        specular = select(0.0, std.pow(specular, 150), specular > 0);
+        const finalColor = groundColor.mul(light) + specular;
 
         let emission = d.vec4f(0, 0, 0, 1);
         const treshold = 0.8;
-
         if (finalColor.r > treshold || finalColor.g > treshold || finalColor.b > treshold) {
-          emission = d.vec4f(finalColor);
+          const val = (light + specular - treshold) / (treshold);
+          emission = d.vec4f(val, val, val, 1);
         }
 
         return {
@@ -372,12 +372,14 @@ function predictOrbits() {
 const postProccessSampler = root.createSampler({
   magFilter: "linear",
   minFilter: "linear",
+  mipmapFilter: "linear",
 });
 
 const emmisionTexture = root
   .createTexture({
     size: [canvas.width, canvas.height, 1],
     format: "rgba8unorm",
+    mipLevelCount: 3
   })
   .$usage("render", "sampled");
 
@@ -430,14 +432,12 @@ const blurRenderPipeline = root.createRenderPipeline({
     pixelSize *= PIXEL_SCALE_BUFFER.$;
 
     let result = std
-      .textureSample(
+      .textureSampleLevel(
         postProccessBindGroupLayout.$.emissionTexture,
         postProccessBindGroupLayout.$.sampler,
         uv,
+        2
       )
-
-    const dpdx = std.dpdx(uv);
-    const dpdy = std.dpdy(uv);
 
     let sum = d.f32(0);
 
@@ -449,12 +449,11 @@ const blurRenderPipeline = root.createRenderPipeline({
         if (i === 0 && j === 0) continue;
 
         result += std
-          .textureSampleGrad(
+          .textureSampleLevel(
             postProccessBindGroupLayout.$.emissionTexture,
             postProccessBindGroupLayout.$.sampler,
             uv.add(d.vec2f(pixelSize * i, pixelSize * j)),
-            dpdx,
-            dpdy,
+            2
           )
           .mul(weights[std.abs(i)] * weights[std.abs(j)]);
       }
@@ -472,6 +471,7 @@ const currentBlurPassTarget = root
   .createTexture({
     size: [canvas.width, canvas.height, 1],
     format: "rgba8unorm",
+    mipLevelCount: 3,
   })
   .$usage("render", "sampled");
 
@@ -482,10 +482,14 @@ const currentBlurPassBindGroup = root.createBindGroup(postProccessBindGroupLayou
 });
 
 function gausianBlur(passes: number) {
+  emmisionTexture.generateMipmaps();
+
   for (let i = 0; i < passes; i++) {
+    const target = i % 2 === 0 ? currentBlurPassTarget : emmisionTexture;
+
     blurRenderPipeline
       .withColorAttachment({
-        view: i % 2 === 0 ? currentBlurPassTarget : emmisionTexture,
+        view: target.createView("render", { mipLevelCount: 1, baseMipLevel: 2 }),
         loadOp: "load",
         clearValue: { r: 0, g: 0, b: 0, a: 1 },
       })
@@ -519,10 +523,11 @@ const finalRenderPipeline = root.createRenderPipeline({
   }),
   fragment: ({ uv }) => {
     "use gpu";
-    return std.textureSample(
+    return std.textureSampleLevel(
       postProccessBindGroupLayout.$.emissionTexture,
       postProccessBindGroupLayout.$.sampler,
       uv,
+      2
     );
   },
   // targets: {
@@ -559,7 +564,7 @@ function render() {
           loadOp: i === 0 ? "clear" : "load",
           clearValue: { r: 0, g: 0, b: 0, a: 1 },
         },
-        emission: { view: emmisionTexture, loadOp: i === 0 ? "clear" : "load", clearValue: { r: 0, g: 0, b: 0, a: 1 } },
+        emission: { view: emmisionTexture.createView("render", { mipLevelCount: 1, baseMipLevel: 0 }), loadOp: i === 0 ? "clear" : "load", clearValue: { r: 0, g: 0, b: 0, a: 1 } },
       })
       .withDepthStencilAttachment({
         view: depthTexture,

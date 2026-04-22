@@ -68,6 +68,12 @@ let depthTexture = root
   })
   .$usage("render");
 
+const mainSampler = root.createSampler({
+  magFilter: "linear",
+  minFilter: "linear",
+  mipmapFilter: "linear",
+});
+
 const mainLayout = tgpu.bindGroupLayout({
   gravityMultiplier: { storage: d.f32, access: "readonly" },
   bodies: { storage: d.arrayOf(CelestianBody), access: "readonly" },
@@ -86,9 +92,14 @@ const computeLayout = tgpu.bindGroupLayout({
   currentBodyIndex: { storage: d.i32, access: "mutable" },
 });
 
-const orbitRenderLayout = tgpu.bindGroupLayout({
+const orbitPrepareRenderLayout = tgpu.bindGroupLayout({
   currentBodyIndex: { storage: d.i32, access: "readonly" },
   vertecies: { storage: d.arrayOf(d.vec3f), access: "readonly" },
+});
+
+const orbitFinalRenderLayout = tgpu.bindGroupLayout({
+  texture: { texture: d.texture2d(), access: "readonly" },
+  sampler: { sampler: "filtering", access: "readonly" },
 });
 
 const orbitComputeLayout = tgpu.bindGroupLayout({
@@ -235,9 +246,9 @@ export function SetUpBuffersAndData() {
         out: { position: d.builtin.position, bodyIndex: d.interpolate("flat", d.i32) },
       })(({ vid }) => {
         "use gpu";
-        const bodyIndex = orbitRenderLayout.$.currentBodyIndex;
+        const bodyIndex = orbitPrepareRenderLayout.$.currentBodyIndex;
         const camera = cameraUniform.$;
-        const point = orbitRenderLayout.$.vertecies[bodyIndex * ORBIT_POINTS_CONST.$ + vid];
+        const point = orbitPrepareRenderLayout.$.vertecies[bodyIndex * ORBIT_POINTS_CONST.$ + vid];
         const position = camera.projection.mul(camera.view).mul(d.vec4f(point, 1));
         return {
           position,
@@ -251,6 +262,9 @@ export function SetUpBuffersAndData() {
       },
       primitive: {
         topology: "line-strip",
+      },
+      targets: {
+        format: "rgba8unorm",
       },
     });
 
@@ -345,9 +359,21 @@ const orbitComputeVelocitiesBuffer = root
   .$usage("storage", "uniform");
 const orbitPointIndexBuffer = root.createBuffer(d.i32).$usage("storage", "uniform");
 
-const orbitRenderBindGroup = root.createBindGroup(orbitRenderLayout, {
+const orbitRenderTexture = root
+  .createTexture({
+    size: [canvas.width, canvas.height, 1],
+    format: "rgba8unorm",
+  })
+  .$usage("render", "sampled");
+
+const orbitPrepareRenderBindGroup = root.createBindGroup(orbitPrepareRenderLayout, {
   currentBodyIndex: currentBodyIndexBuffer,
   vertecies: orbitVerticiesBuffer,
+});
+
+const orbitFinalRenderBindGroup = root.createBindGroup(orbitFinalRenderLayout, {
+  texture: orbitRenderTexture,
+  sampler: mainSampler
 });
 
 const orbitComputeBindGroup = root.createBindGroup(orbitComputeLayout, {
@@ -369,10 +395,50 @@ function predictOrbits() {
   }
 }
 
-const postProccessSampler = root.createSampler({
-  magFilter: "linear",
-  minFilter: "linear",
-  mipmapFilter: "linear",
+const finalOrbitRenderPipeline = root.createRenderPipeline({
+  vertex: tgpu.vertexFn({
+    in: { vid: d.builtin.vertexIndex },
+    out: { position: d.builtin.position, uv: d.vec2f },
+  })(({ vid }) => {
+    "use gpu";
+    const positions = [
+      d.vec3f(-1, 1, 0),
+      d.vec3f(-1, -1, 0),
+      d.vec3f(1, -1, 0),
+      d.vec3f(-1, 1, 0),
+      d.vec3f(1, 1, 0),
+      d.vec3f(1, -1, 0),
+    ];
+    const uvX = positions[vid].x * 0.5 + 0.5;
+    const uvY = 1.0 - (positions[vid].y * 0.5 + 0.5);
+    return {
+      position: d.vec4f(positions[vid], 1),
+      uv: d.vec2f(uvX, uvY),
+    };
+  }),
+  fragment: ({ uv }) => {
+    "use gpu";
+    return std.textureSampleLevel(
+      orbitFinalRenderLayout.$.texture,
+      orbitFinalRenderLayout.$.sampler,
+      uv,
+      1
+    );
+  },
+  targets: {
+    blend: {
+      color: {
+        operation: 'add',
+        srcFactor: 'one-minus-dst-alpha',
+        dstFactor: 'one',
+      },
+      alpha: {
+        operation: 'add',
+        srcFactor: 'one-minus-dst-alpha',
+        dstFactor: 'one',
+      },
+    },
+  }
 });
 
 const emmisionTexture = root
@@ -403,7 +469,7 @@ const postProccessBindGroup = root.createBindGroup(postProccessBindGroupLayout, 
   isHorizontal: isBlurHorizontalBuffer,
   targetTexture: postProccessTarget,
   emissionTexture: emmisionTexture,
-  sampler: postProccessSampler,
+  sampler: mainSampler,
 });
 
 const blurRenderPipeline = root.createRenderPipeline({
@@ -481,7 +547,7 @@ const currentBlurPassBindGroup = root.createBindGroup(postProccessBindGroupLayou
   isHorizontal: isBlurHorizontalBuffer,
   targetTexture: postProccessTarget,
   emissionTexture: currentBlurPassTarget,
-  sampler: postProccessSampler,
+  sampler: mainSampler,
 });
 
 function gausianBlur(passes: number) {
@@ -502,7 +568,7 @@ function gausianBlur(passes: number) {
   }
 }
 
-const finalRenderPipeline = root.createRenderPipeline({
+const finalBloomRenderPipeline = root.createRenderPipeline({
   vertex: tgpu.vertexFn({
     in: { vid: d.builtin.vertexIndex },
     out: { position: d.builtin.position, uv: d.vec2f },
@@ -549,11 +615,11 @@ const finalRenderPipeline = root.createRenderPipeline({
 });
 
 function render() {
-  // bodiesVelocityPipeline.with(mainComputeBindGroup).dispatchThreads(INITIAL_BODIES.length);
-  // bodiesOffsetPipeline.with(mainComputeBindGroup).dispatchThreads(INITIAL_BODIES.length);
+  bodiesVelocityPipeline.with(mainComputeBindGroup).dispatchThreads(INITIAL_BODIES.length);
+  bodiesOffsetPipeline.with(mainComputeBindGroup).dispatchThreads(INITIAL_BODIES.length);
 
   if (frame % (ORBIT_POINTS / 2) === 0) {
-    // predictOrbits();
+    predictOrbits();
   }
 
   data.forEach(async (item, i) => {
@@ -564,9 +630,9 @@ function render() {
         color: {
           view: context,
           loadOp: i === 0 ? "clear" : "load",
-          clearValue: { r: 0, g: 0, b: 0, a: 1 },
+          clearValue: { r: 0, g: 0, b: 0, a: 0 },
         },
-        emission: { view: emmisionTexture.createView("render", { mipLevelCount: 1, baseMipLevel: 0 }), loadOp: i === 0 ? "clear" : "load", clearValue: { r: 0, g: 0, b: 0, a: 1 } },
+        emission: { view: emmisionTexture.createView("render", { mipLevelCount: 1, baseMipLevel: 0 }), loadOp: i === 0 ? "clear" : "load", clearValue: { r: 0, g: 0, b: 0, a: 0 } },
       })
       .withDepthStencilAttachment({
         view: depthTexture,
@@ -577,23 +643,22 @@ function render() {
       .with(mainRenderBindGroup)
       .draw(item.verticies.$.length, 1);
 
-    // item.orbitRenderPipeline.
-    //   withColorAttachment({ view: context, loadOp: i === 0 ? "clear" : "load", clearValue: { r: 0, g: 0, b: 0, a: 1 } }).
-    //   // withDepthStencilAttachment({
-    //   //   view: depthTexture,
-    //   //   depthLoadOp: "load",
-    //   //   depthClearValue: 1,
-    //   //   depthStoreOp: "store"
-    //   // }).
-    //   with(orbitRenderBindGroup).
-    //   draw(ORBIT_POINTS, 1);
+    item.orbitRenderPipeline.
+      withColorAttachment({ view: orbitRenderTexture, loadOp: i === 0 ? "clear" : "load", clearValue: { r: 0, g: 0, b: 0, a: 0 } }).
+      with(orbitPrepareRenderBindGroup).
+      draw(ORBIT_POINTS, 1);
   });
 
   gausianBlur(GAUSIAN_ITERATIONS);
 
-  finalRenderPipeline
+  finalBloomRenderPipeline
     .withColorAttachment({ view: context, loadOp: "load", clearValue: { r: 0, g: 0, b: 0, a: 1 } })
     .with(postProccessBindGroup)
+    .draw(6, 1);
+
+  finalOrbitRenderPipeline
+    .withColorAttachment({ view: context, loadOp: "load", clearValue: { r: 0, g: 0, b: 0, a: 1 } })
+    .with(orbitFinalRenderBindGroup)
     .draw(6, 1);
 
   updatePosition();

@@ -200,16 +200,16 @@ export function SetUpBuffersAndData() {
 
         const surfaceToLightDirection = std.normalize(sunPosition.sub(point));
         const light = std.dot(normal.xyz, surfaceToLightDirection);
-        // console.log(light);
         const surfaceToViewDirection = std.normalize(cameraPos.sub(point));
         const halfVector = std.normalize(surfaceToLightDirection.add(surfaceToViewDirection));
         let specular = std.dot(normal.xyz, halfVector);
-        specular = select(0.0, std.pow(specular, 150), specular > 0);
+        specular = select(0.0, std.pow(specular, 90), specular > 0);
         const finalColor = groundColor.mul(light) + specular;
 
         let emission = d.vec4f(0, 0, 0, 1);
         const treshold = 0.8;
         if (finalColor.r > treshold || finalColor.g > treshold || finalColor.b > treshold) {
+          // emission = d.vec4f(finalColor);
           const val = (light + specular - treshold) / (treshold);
           emission = d.vec4f(val, val, val, 1);
         }
@@ -379,7 +379,7 @@ const emmisionTexture = root
   .createTexture({
     size: [canvas.width, canvas.height, 1],
     format: "rgba8unorm",
-    mipLevelCount: 3
+    mipLevelCount: 4
   })
   .$usage("render", "sampled");
 
@@ -391,12 +391,16 @@ const postProccessTarget = root
   .$usage("render", "sampled");
 
 const postProccessBindGroupLayout = tgpu.bindGroupLayout({
+  isHorizontal: { storage: d.i32, access: "readonly" },
   targetTexture: { texture: d.texture2d() },
   emissionTexture: { texture: d.texture2d() },
   sampler: { sampler: "filtering" },
 });
 
+const isBlurHorizontalBuffer = root.createBuffer(d.i32).$usage("storage", "uniform");
+
 const postProccessBindGroup = root.createBindGroup(postProccessBindGroupLayout, {
+  isHorizontal: isBlurHorizontalBuffer,
   targetTexture: postProccessTarget,
   emissionTexture: emmisionTexture,
   sampler: postProccessSampler,
@@ -425,7 +429,6 @@ const blurRenderPipeline = root.createRenderPipeline({
   }),
   fragment: ({ uv }) => {
     "use gpu";
-    // const weights = [0.227027, 0.1945946, 0.16, 0.1216216, 0.09, 0.07, 0.054054, 0.04, 0.03, 0.02, 0.016216, 0.012, 0.01, 0.007];
     const weights = [0.227027, 0.1945946, 0.1216216, 0.054054, 0.016216];
 
     let pixelSize = 1.0 / std.textureDimensions(postProccessBindGroupLayout.$.emissionTexture).x;
@@ -436,31 +439,30 @@ const blurRenderPipeline = root.createRenderPipeline({
         postProccessBindGroupLayout.$.emissionTexture,
         postProccessBindGroupLayout.$.sampler,
         uv,
-        2
+        1
       )
 
     let sum = d.f32(0);
 
-    result *= weights[0];
+    result *= select(weights[0], 1, postProccessBindGroupLayout.$.isHorizontal === 0);
+
     for (let i = -weights.length + 1; i < weights.length; i++) {
-      for (let j = -weights.length + 1; j < weights.length; j++) {
-        sum += weights[std.abs(i)] * weights[std.abs(j)];
+      sum += weights[std.abs(i)];
 
-        if (i === 0 && j === 0) continue;
+      if (i === 0) continue;
 
-        result += std
-          .textureSampleLevel(
-            postProccessBindGroupLayout.$.emissionTexture,
-            postProccessBindGroupLayout.$.sampler,
-            uv.add(d.vec2f(pixelSize * i, pixelSize * j)),
-            2
-          )
-          .mul(weights[std.abs(i)] * weights[std.abs(j)]);
-      }
+      const vec = std.select(d.vec2f(pixelSize * i, 0), d.vec2f(0, pixelSize * i), postProccessBindGroupLayout.$.isHorizontal === 0);
+
+      result +=
+        std.textureSampleLevel(
+          postProccessBindGroupLayout.$.emissionTexture,
+          postProccessBindGroupLayout.$.sampler,
+          uv.add(vec),
+          1
+        ).mul(weights[std.abs(i)])
     }
 
     return result / sum;
-
   },
   targets: {
     format: "rgba8unorm",
@@ -471,11 +473,12 @@ const currentBlurPassTarget = root
   .createTexture({
     size: [canvas.width, canvas.height, 1],
     format: "rgba8unorm",
-    mipLevelCount: 3,
+    mipLevelCount: 4,
   })
   .$usage("render", "sampled");
 
 const currentBlurPassBindGroup = root.createBindGroup(postProccessBindGroupLayout, {
+  isHorizontal: isBlurHorizontalBuffer,
   targetTexture: postProccessTarget,
   emissionTexture: currentBlurPassTarget,
   sampler: postProccessSampler,
@@ -484,20 +487,19 @@ const currentBlurPassBindGroup = root.createBindGroup(postProccessBindGroupLayou
 function gausianBlur(passes: number) {
   emmisionTexture.generateMipmaps();
 
-  for (let i = 0; i < passes; i++) {
+  for (let i = 0; i < passes * 2; i++) {
     const target = i % 2 === 0 ? currentBlurPassTarget : emmisionTexture;
 
+    isBlurHorizontalBuffer.write(i % 2);
     blurRenderPipeline
       .withColorAttachment({
-        view: target.createView("render", { mipLevelCount: 1, baseMipLevel: 2 }),
+        view: target.createView("render", { mipLevelCount: 1, baseMipLevel: 1 }),
         loadOp: "load",
         clearValue: { r: 0, g: 0, b: 0, a: 1 },
       })
       .with(i % 2 === 0 ? postProccessBindGroup : currentBlurPassBindGroup)
       .draw(6, 1);
   }
-
-  return passes % 2 === 1 ? currentBlurPassBindGroup : postProccessBindGroup;
 }
 
 const finalRenderPipeline = root.createRenderPipeline({
@@ -527,23 +529,23 @@ const finalRenderPipeline = root.createRenderPipeline({
       postProccessBindGroupLayout.$.emissionTexture,
       postProccessBindGroupLayout.$.sampler,
       uv,
-      2
+      1
     );
   },
-  // targets: {
-  //   blend: {
-  //     color: {
-  //       srcFactor: "one",
-  //       dstFactor: "one",
-  //       operation: "add",
-  //     },
-  //     alpha: {
-  //       srcFactor: "one",
-  //       dstFactor: "one",
-  //       operation: "add",
-  //     }
-  //   },
-  // }
+  targets: {
+    blend: {
+      color: {
+        srcFactor: "one",
+        dstFactor: "one",
+        operation: "add",
+      },
+      alpha: {
+        srcFactor: "one",
+        dstFactor: "one",
+        operation: "add",
+      }
+    },
+  }
 });
 
 function render() {
@@ -587,11 +589,11 @@ function render() {
     //   draw(ORBIT_POINTS, 1);
   });
 
-  const finalBindGroup = gausianBlur(GAUSIAN_ITERATIONS);
+  gausianBlur(GAUSIAN_ITERATIONS);
 
   finalRenderPipeline
     .withColorAttachment({ view: context, loadOp: "load", clearValue: { r: 0, g: 0, b: 0, a: 1 } })
-    .with(finalBindGroup)
+    .with(postProccessBindGroup)
     .draw(6, 1);
 
   updatePosition();

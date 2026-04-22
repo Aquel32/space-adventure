@@ -141,7 +141,7 @@ export const INITIAL_BODIES = d.arrayOf(
   {
     position: d.vec3f(EARTH_DISTANCE, 0, 0),
     radius: EARTH_BODY_RENDER_RADIUS,
-    color: d.vec4f(0.3, 0.6, 1.0, 1),
+    color: d.vec4f(0.2, 0.5, 0.8, 1),
     initialVelocity: EARTH_INITIAL_VELOCITY,
     mass: EARTH_MASS,
   }, // Earth

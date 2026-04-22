@@ -49,11 +49,9 @@ export function setupFirstPersonCamera(
     const position = cameraState.pos;
     const pitch = cameraState.pitch;
     const yaw = cameraState.yaw;
-    const target = position.add(
-      d.vec3f(std.cos(pitch) * std.sin(yaw), std.sin(pitch), std.cos(pitch) * std.cos(yaw)),
-    );
+    const target = d.vec3f(std.cos(pitch) * std.sin(yaw), std.sin(pitch), std.cos(pitch) * std.cos(yaw));
 
-    const view = calculateView(position, target);
+    const view = calculateView(d.vec3f(0, 0, 0), target);
     const projection = calculateProj(canvas.clientWidth / canvas.clientHeight);
 
     callback(
@@ -129,10 +127,6 @@ export function setupFirstPersonCamera(
 
   // update position function
   const updatePosition = () => {
-    if (document.pointerLockElement !== canvas) {
-      return;
-    }
-
     const forward = std
       .normalize(d.vec3f(std.sin(cameraState.yaw), 0, std.cos(cameraState.yaw)))
       .mul(moveSpeed);

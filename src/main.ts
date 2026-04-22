@@ -49,15 +49,21 @@ SetUpControls();
 const canvas = document.querySelector<HTMLCanvasElement>("#canvas")!;
 const context = root.configureContext({ canvas });
 
-const cameraUniform = root.createUniform(Camera);
+export const attachedObjectIndexUniform = root.createUniform(i32);
+attachedObjectIndexUniform.write(3);
+
+const cameraBuffer = root.createBuffer(Camera).$usage("storage", "uniform");
+const cameraMutable = cameraBuffer.as("mutable");
+const cameraUniform = cameraBuffer.as("uniform");
+
 const { updatePosition } = setupFirstPersonCamera(
   canvas,
   {
-    initPos: d.vec3f(100, 0, 0),
+    initPos: d.vec3f(0, 0, 0),
     speed: d.vec3f(0.01, 0.1, 5),
   },
   (props) => {
-    cameraUniform.patch(props);
+    cameraBuffer.patch(props);
   },
 );
 
@@ -180,9 +186,9 @@ export function SetUpBuffersAndData() {
         const camera = cameraUniform.$;
         const offset = mainLayout.$.offsets[mainLayout.$.currentBodyIndex];
         const normal = verticies.$[vid];
-        const point = normal.xyz.mul(body.radius).add(offset);
+        const point = normal.xyz.mul(body.radius).add(offset - camera.pos.xyz);
         const position = camera.projection.mul(camera.view).mul(d.vec4f(point, 1));
-        const sunPosition = mainLayout.$.offsets[0];
+        const sunPosition = mainLayout.$.offsets[0] - camera.pos.xyz;
 
         let emits = 0;
         if (mainLayout.$.currentBodyIndex === 0) {
@@ -211,7 +217,7 @@ export function SetUpBuffersAndData() {
 
         const surfaceToLightDirection = std.normalize(sunPosition.sub(point));
         const light = std.dot(normal.xyz, surfaceToLightDirection);
-        const surfaceToViewDirection = std.normalize(cameraPos.sub(point));
+        const surfaceToViewDirection = std.normalize(point.mul(-1));
         const halfVector = std.normalize(surfaceToLightDirection.add(surfaceToViewDirection));
         let specular = std.dot(normal.xyz, halfVector);
         specular = select(0.0, std.pow(specular, 90), specular > 0);
@@ -220,7 +226,6 @@ export function SetUpBuffersAndData() {
         let emission = d.vec4f(0, 0, 0, 1);
         const treshold = 0.8;
         if (finalColor.r > treshold || finalColor.g > treshold || finalColor.b > treshold) {
-          // emission = d.vec4f(finalColor);
           const val = (light + specular - treshold) / (treshold);
           emission = d.vec4f(val, val, val, 1);
         }
@@ -248,7 +253,7 @@ export function SetUpBuffersAndData() {
         "use gpu";
         const bodyIndex = orbitPrepareRenderLayout.$.currentBodyIndex;
         const camera = cameraUniform.$;
-        const point = orbitPrepareRenderLayout.$.vertecies[bodyIndex * ORBIT_POINTS_CONST.$ + vid];
+        const point = orbitPrepareRenderLayout.$.vertecies[bodyIndex * ORBIT_POINTS_CONST.$ + vid] - camera.pos.xyz;
         const position = camera.projection.mul(camera.view).mul(d.vec4f(point, 1));
         return {
           position,
@@ -614,9 +619,26 @@ const finalBloomRenderPipeline = root.createRenderPipeline({
   }
 });
 
+const computeCameraPositionPipeline = root.createGuardedComputePipeline(() => {
+  "use gpu";
+  const attachedObjectIndex = attachedObjectIndexUniform.$;
+
+  if (attachedObjectIndex === -1) {
+    return;
+  }
+
+  const currentCameraPosition = cameraMutable.$.pos.xyz;
+  const attachedObjectPosition = computeLayout.$.offsets[attachedObjectIndex];
+
+  cameraMutable.$.pos = d.vec4f(currentCameraPosition + attachedObjectPosition, 1);
+});
+
 function render() {
+  updatePosition();
+
   bodiesVelocityPipeline.with(mainComputeBindGroup).dispatchThreads(INITIAL_BODIES.length);
   bodiesOffsetPipeline.with(mainComputeBindGroup).dispatchThreads(INITIAL_BODIES.length);
+  computeCameraPositionPipeline.with(mainComputeBindGroup).dispatchThreads();
 
   if (frame % (ORBIT_POINTS / 2) === 0) {
     predictOrbits();
@@ -660,8 +682,6 @@ function render() {
     .withColorAttachment({ view: context, loadOp: "load", clearValue: { r: 0, g: 0, b: 0, a: 1 } })
     .with(orbitFinalRenderBindGroup)
     .draw(6, 1);
-
-  updatePosition();
 
   frame++;
   requestAnimationFrame(render);

@@ -1,11 +1,13 @@
 // oxlint-disable-next-line no-unassigned-import
-import { cos, select, sin, step } from "typegpu/std";
+import { cos, normalize, select, sin, step } from "typegpu/std";
 import { Camera, setupFirstPersonCamera } from "./setup-first-person-camera";
+import { perlin2d, perlin3d } from '@typegpu/noise'
 import "./style.css";
 import tgpu, {
   common,
   d,
   std,
+  type StorageFlag,
   type TgpuBindGroup,
   type TgpuBuffer,
   type TgpuBufferMutable,
@@ -15,6 +17,7 @@ import tgpu, {
   type TgpuMutable,
   type TgpuRenderPipeline,
   type TgpuUniform,
+  type VertexFlag,
 } from "typegpu";
 import { i32, type v3f, type v4f } from "typegpu/data";
 import * as sphere from "./sphere";
@@ -98,6 +101,8 @@ const mainLayout = tgpu.bindGroupLayout({
   masses: { storage: d.arrayOf(d.f32), access: "readonly" },
   offsets: { storage: d.arrayOf(d.vec3f), access: "readonly" },
   velocities: { storage: d.arrayOf(d.vec3f), access: "readonly" },
+  verticies: { storage: d.arrayOf(d.vec3f), access: "readonly" },
+  normals: { storage: d.arrayOf(d.vec3f), access: "readonly" },
   currentBodyIndex: { storage: d.i32, access: "readonly" },
 });
 
@@ -143,15 +148,6 @@ const velocitiesBuffer = root
   .$usage("storage", "uniform");
 const currentBodyIndexBuffer = root.createBuffer(d.i32).$usage("storage", "uniform");
 
-const mainRenderBindGroup = root.createBindGroup(mainLayout, {
-  bodies: bodiesBuffer,
-  masses: massesBuffer,
-  offsets: offsetsBuffer,
-  velocities: velocitiesBuffer,
-  currentBodyIndex: currentBodyIndexBuffer,
-  gravityMultiplier: gravityMultiplierBuffer,
-});
-
 const mainComputeBindGroup = root.createBindGroup(computeLayout, {
   bodies: bodiesBuffer,
   masses: massesBuffer,
@@ -163,15 +159,18 @@ const mainComputeBindGroup = root.createBindGroup(computeLayout, {
 
 const data: {
   mainRenderPipeline: TgpuRenderPipeline<{ color: d.Vec4f; emission: d.Vec4f }>;
-  verticies: TgpuConst<d.WgslArray<d.Vec4f>>;
+  mainRenderBindGroup: TgpuBindGroup;
+  verticies: TgpuBuffer<d.WgslArray<d.Vec3f>> & StorageFlag & VertexFlag;
+  normals: TgpuBuffer<d.WgslArray<d.Vec3f>> & StorageFlag & VertexFlag;
   orbitRenderPipeline: TgpuRenderPipeline<d.Vec4f>;
 }[] = [];
 
-const SPHERE_DIVISIONS = 10;
+const SPHERE_DIVISIONS = 8;
 
 export function SetUpBuffersAndData() {
   gravityMultiplierBuffer.write(GRAVITY_MULTIPLIER);
 
+  bodiesBuffer.write(INITIAL_BODIES);
   massesBuffer.write(INITIAL_BODIES.map((b) => b.mass));
   offsetsBuffer.write(INITIAL_BODIES.map((b) => b.position));
   velocitiesBuffer.write(INITIAL_BODIES.map((b) => b.initialVelocity));
@@ -180,6 +179,19 @@ export function SetUpBuffersAndData() {
   data.length = 0;
 
   INITIAL_BODIES.forEach((body, i) => {
+    const { verticies, normals } = sphere.generateSphere(root, SPHERE_DIVISIONS, i);
+
+    const mainRenderBindGroup = root.createBindGroup(mainLayout, {
+      bodies: bodiesBuffer,
+      masses: massesBuffer,
+      offsets: offsetsBuffer,
+      velocities: velocitiesBuffer,
+      currentBodyIndex: currentBodyIndexBuffer,
+      gravityMultiplier: gravityMultiplierBuffer,
+      verticies: verticies,
+      normals: normals
+    });
+
     const mainRenderPipeline = root.createRenderPipeline({
       vertex: tgpu.vertexFn({
         in: { vid: d.builtin.vertexIndex },
@@ -190,17 +202,22 @@ export function SetUpBuffersAndData() {
           emits: d.interpolate("flat", d.i32),
           sunPosition: d.vec3f,
           groundColor: d.vec4f,
-          normal: d.vec4f,
+          normal: d.vec3f,
           vid: d.interpolate("flat", d.i32),
+          bodyId: d.interpolate("flat", d.i32),
         },
       })(({ vid }) => {
         "use gpu";
         const camera = cameraUniform.$;
         const offset = mainLayout.$.offsets[mainLayout.$.currentBodyIndex];
-        const normal = verticies.$[vid];
-        const point = normal.xyz.mul(body.radius).add(offset - camera.pos.xyz);
+        const vertex = mainLayout.$.verticies[vid];
+        const normal = mainLayout.$.normals[vid];
+
+        const point = vertex.mul(body.radius).add(offset - camera.pos.xyz);
         const position = camera.projection.mul(camera.view).mul(d.vec4f(point, 1));
         const sunPosition = mainLayout.$.offsets[0] - camera.pos.xyz;
+
+        let groundColor = d.vec4f(body.colors[2].color);
 
         let emits = 0;
         if (mainLayout.$.currentBodyIndex === 0) {
@@ -209,16 +226,17 @@ export function SetUpBuffersAndData() {
 
         return {
           position: position,
-          groundColor: body.color,
-          normal: normal,
+          groundColor,
+          normal,
           vid,
           point,
           sunPosition,
           emits,
           cameraPos: camera.pos.xyz,
+          bodyId: mainLayout.$.currentBodyIndex,
         };
       }),
-      fragment: ({ groundColor, normal, vid, sunPosition, point, emits, cameraPos }) => {
+      fragment: ({ $position, groundColor, normal, vid, sunPosition, point, emits, cameraPos, bodyId }) => {
         "use gpu";
         if (emits === 1) {
           return {
@@ -228,19 +246,20 @@ export function SetUpBuffersAndData() {
         }
 
         const surfaceToLightDirection = std.normalize(sunPosition.sub(point));
-        const light = std.dot(normal.xyz, surfaceToLightDirection);
-        const surfaceToViewDirection = std.normalize(point.mul(-1));
-        const halfVector = std.normalize(surfaceToLightDirection.add(surfaceToViewDirection));
-        let specular = std.dot(normal.xyz, halfVector);
-        specular = select(0.0, std.pow(specular, 90), specular > 0);
-        const finalColor = groundColor.mul(light) + specular;
+        const diffuse = std.max(0, std.dot(normal, surfaceToLightDirection));
+
+        const reflectionDirection = std.reflect(surfaceToLightDirection.mul(-1), normal.xyz);
+        const surfaceToViewDirection = std.normalize(point * - 1);
+        const specular = std.pow(std.max(0, std.dot(reflectionDirection, surfaceToViewDirection)), 16) * 0.5;
+
+        const finalColor = groundColor * diffuse + specular;
 
         let emission = d.vec4f(0, 0, 0, 1);
-        const treshold = 0.8;
-        if (finalColor.r > treshold || finalColor.g > treshold || finalColor.b > treshold) {
-          const val = (light + specular - treshold) / (treshold);
-          emission = d.vec4f(val, val, val, 1);
-        }
+        // const treshold = 0.8;
+        // if (finalColor.r > treshold || finalColor.g > treshold || finalColor.b > treshold) {
+        //   const val = (light + specular - treshold) / (treshold);
+        //   emission = d.vec4f(val, val, val, 1);
+        // }
 
         return {
           color: finalColor,
@@ -285,11 +304,7 @@ export function SetUpBuffersAndData() {
       },
     });
 
-    const verticies = tgpu.const(
-      d.arrayOf(d.vec4f, sphere.getVertexAmount(SPHERE_DIVISIONS)),
-      sphere.generateSphere(SPHERE_DIVISIONS),
-    );
-    data.push({ mainRenderPipeline, verticies, orbitRenderPipeline });
+    data.push({ mainRenderPipeline, verticies, normals, orbitRenderPipeline, mainRenderBindGroup });
   });
 
   frame = 0;
@@ -674,8 +689,8 @@ function render() {
         depthClearValue: 1,
         depthStoreOp: "store",
       })
-      .with(mainRenderBindGroup)
-      .draw(item.verticies.$.length, 1);
+      .with(item.mainRenderBindGroup)
+      .draw(sphere.getVertexAmount(SPHERE_DIVISIONS), 1);
 
     item.orbitRenderPipeline.
       withColorAttachment({ view: orbitRenderTexture, loadOp: i === 0 ? "clear" : "load", clearValue: { r: 0, g: 0, b: 0, a: 0 } }).
@@ -696,6 +711,18 @@ function render() {
       .with(orbitFinalRenderBindGroup)
       .draw(6, 1);
   }
+
+  // const texture = sphere.generateTexture(INITIAL_BODIES[3], root, SPHERE_DIVISIONS);
+  // const testBindGroup = root.createBindGroup(orbitFinalRenderLayout, {
+  //   texture,
+  //   sampler: mainSampler,
+  // })
+
+  // finalOrbitRenderPipeline
+  //   .withColorAttachment({ view: context, loadOp: "load", clearValue: { r: 0, g: 0, b: 0, a: 1 } })
+  //   .with(testBindGroup)
+  //   .draw(6, 1);
+
 
   frame++;
   requestAnimationFrame(render);

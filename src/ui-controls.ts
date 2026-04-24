@@ -1,5 +1,6 @@
 import { GAUSIAN_ITERATIONS, PIXEL_SCALE_BUFFER, RENDER_ORBITS, SetBlurIterations, SetRenderOrbits, SetUpBuffersAndData, UpdateAttachedBody } from "./main";
 import { GRAVITY_MULTIPLIER, INITIAL_BODIES, SetGravityMultiplier } from "./simulation-data";
+import { SetEpsilon, SetStrength } from "./sphere";
 
 let controlsReady = false;
 
@@ -13,7 +14,9 @@ export function SetUpControls() {
           <label>Pixel Scale: <input type="number" class="ps" value="${1}" /></label>
           <label>Attached Body: <input type="number" class="ab" value="${3}" /></label>
           <label>Render Orbits: <input type="checkbox" class="ro" ${RENDER_ORBITS ? "checked" : ""} /></label>
-        </div>
+          <label>Strength: <input type="number" class="str reload" value="${0.1}" /></label>
+          <label>Epsilon: <input type="number" class="eps reload" value="${0.001}" /></label>
+          </div>
         <div class="body-controls">
         
         </div>
@@ -64,6 +67,16 @@ export function SetUpControls() {
     SetRenderOrbits(newRo);
   });
 
+  document.querySelector(".str")!.addEventListener("change", (e) => {
+    const newStr = parseFloat((e.target as HTMLInputElement).value);
+    SetStrength(newStr);
+  });
+
+  document.querySelector(".eps")!.addEventListener("change", (e) => {
+    const newEps = parseFloat((e.target as HTMLInputElement).value);
+    SetEpsilon(newEps);
+  });
+
   document.querySelectorAll(".body").forEach((control, i) => {
     const massInput = control.querySelector(".mass") as HTMLInputElement;
     const radiusInput = control.querySelector(".radius") as HTMLInputElement;
@@ -107,9 +120,9 @@ export function SetUpControls() {
     });
   });
 
-  // document.querySelectorAll("input").forEach((input) => {
-  //   input.addEventListener("change", SetUpBuffersAndData);
-  // });
+  document.querySelectorAll("input.reload").forEach((input) => {
+    input.addEventListener("change", SetUpBuffersAndData);
+  });
 
   controlsReady = true;
 }

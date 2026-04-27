@@ -81,9 +81,10 @@ function getPointOnCubeFace(direction: v3f, divisions: number, x: number, y: num
 }
 
 
+
 const sphereComputeLayout = tgpu.bindGroupLayout({
-  verticies: { storage: d.arrayOf(d.vec3f), access: "mutable" },
-  normals: { storage: d.arrayOf(d.vec3f), access: "mutable" },
+  verticies: { storage: d.arrayOf(d.u32), access: "mutable" },
+  normals: { storage: d.arrayOf(d.u32), access: "mutable" },
   currentDirection: { uniform: d.u32 },
   divisions: { uniform: d.u32 },
   strength: { uniform: d.f32 },
@@ -92,8 +93,10 @@ const sphereComputeLayout = tgpu.bindGroupLayout({
 });
 
 export function generateSphere(root: TgpuRoot, divisions: number, perlinOffset: number) {
-  const verticies = root.createBuffer(d.arrayOf(d.vec3f, getVertexAmount(divisions))).$usage("vertex", "storage");
-  const normals = root.createBuffer(d.arrayOf(d.vec3f, getVertexAmount(divisions))).$usage("vertex", "storage");
+  const verticies = root.createBuffer(d.arrayOf(d.u32, getVertexAmount(divisions) * 2)).$usage("vertex", "storage");
+  const normals = root.createBuffer(d.arrayOf(d.u32, getVertexAmount(divisions) * 2)).$usage("vertex", "storage");
+  const trickVerticies = root.createBuffer(d.disarrayOf(d.float16x4, getVertexAmount(divisions) * 2), verticies.buffer).$usage("vertex");
+  const trickNormals = root.createBuffer(d.disarrayOf(d.float16x4, getVertexAmount(divisions) * 2), normals.buffer).$usage("vertex");
 
   const currentDirection = root.createBuffer(d.u32).$usage("uniform");
   const divisionsBuffer = root.createBuffer(d.u32).$usage("uniform");
@@ -116,38 +119,33 @@ export function generateSphere(root: TgpuRoot, divisions: number, perlinOffset: 
     perlinOffset: perlinOffsetBuffer,
   });
 
+  const temp = tgpu.const(d.arrayOf(d.vec2u, 6), [
+    d.vec2u(0, 0),
+    d.vec2u(1, 0),
+    d.vec2u(0, 1),
+    d.vec2u(1, 0),
+    d.vec2u(1, 1),
+    d.vec2u(0, 1),
+  ]);
+
   const createSphereComputePipeline = root.createGuardedComputePipeline((x: number, y: number) => {
     "use gpu";
 
     const divisions = sphereComputeLayout.$.divisions;
     const directionIndex = sphereComputeLayout.$.currentDirection;
     const direction = cubeDirections.$[directionIndex];
-    const index = (directionIndex * 6 * (4 ** divisions)) + (y * (2 ** divisions) * 6) + (x * 6);
+    const index = (directionIndex * 12 * d.u32(4 ** divisions)) + (y * d.u32(2 ** divisions) * 12) + (x * 12);
 
-    let result = getPointOnCubeFace(direction, divisions, x, y);
-    sphereComputeLayout.$.verticies[index] = d.vec3f(result.point);
-    sphereComputeLayout.$.normals[index] = d.vec3f(result.normal);
-
-    result = getPointOnCubeFace(direction, divisions, x + 1, y);
-    sphereComputeLayout.$.verticies[index + 1] = d.vec3f(result.point);
-    sphereComputeLayout.$.normals[index + 1] = d.vec3f(result.normal);
-
-    result = getPointOnCubeFace(direction, divisions, x, y + 1);
-    sphereComputeLayout.$.verticies[index + 2] = d.vec3f(result.point);
-    sphereComputeLayout.$.normals[index + 2] = d.vec3f(result.normal);
-
-    result = getPointOnCubeFace(direction, divisions, x + 1, y);
-    sphereComputeLayout.$.verticies[index + 3] = d.vec3f(result.point);
-    sphereComputeLayout.$.normals[index + 3] = d.vec3f(result.normal);
-
-    result = getPointOnCubeFace(direction, divisions, x + 1, y + 1);
-    sphereComputeLayout.$.verticies[index + 4] = d.vec3f(result.point);
-    sphereComputeLayout.$.normals[index + 4] = d.vec3f(result.normal);
-
-    result = getPointOnCubeFace(direction, divisions, x, y + 1);
-    sphereComputeLayout.$.verticies[index + 5] = d.vec3f(result.point);
-    sphereComputeLayout.$.normals[index + 5] = d.vec3f(result.normal);
+    for (let i = d.u32(0); i < 6; i++) {
+      const result = getPointOnCubeFace(direction, divisions, x + temp.$[i].x, y + temp.$[i].y);
+      sphereComputeLayout.$.verticies[index + 2 * i] = std.pack2x16float(result.point.xy);
+      sphereComputeLayout.$.verticies[index + 2 * i + 1] = std.pack2x16float(result.point.zz);
+      sphereComputeLayout.$.normals[index + 2 * i] = std.pack2x16float(result.normal.xy);
+      sphereComputeLayout.$.normals[index + 2 * i + 1] = std.pack2x16float(result.normal.zz);
+    }
   });
+
+  console.log(tgpu.resolve([createSphereComputePipeline.pipeline]));
 
   cubeDirections.$.forEach((_, direction) => {
     currentDirection.write(direction);
@@ -157,5 +155,5 @@ export function generateSphere(root: TgpuRoot, divisions: number, perlinOffset: 
       dispatchThreads(divisions, divisions);
   });
 
-  return { verticies, normals };
+  return { verticies, normals, trickVerticies, trickNormals };
 }

@@ -30,7 +30,9 @@ document.querySelector<HTMLDivElement>("#app")!.innerHTML = `
 </main>
 `;
 
-const root = await tgpu.init();
+const root = await tgpu.init({
+  device: { requiredLimits: { "maxBufferSize": 4294967292, "maxStorageBufferBindingSize": 4294967292 } },
+});
 let frame = 0;
 
 const gravityMultiplierBuffer = root.createBuffer(d.f32).$usage("storage", "uniform");
@@ -95,14 +97,15 @@ const mainSampler = root.createSampler({
   mipmapFilter: "linear",
 });
 
+const positionVertexLayout = tgpu.vertexLayout(d.disarrayOf(d.float16x4));
+const normalVertexLayout = tgpu.vertexLayout(d.disarrayOf(d.float16x4));
+
 const mainLayout = tgpu.bindGroupLayout({
   gravityMultiplier: { storage: d.f32, access: "readonly" },
   bodies: { storage: d.arrayOf(CelestianBody), access: "readonly" },
   masses: { storage: d.arrayOf(d.f32), access: "readonly" },
   offsets: { storage: d.arrayOf(d.vec3f), access: "readonly" },
   velocities: { storage: d.arrayOf(d.vec3f), access: "readonly" },
-  verticies: { storage: d.arrayOf(d.vec3f), access: "readonly" },
-  normals: { storage: d.arrayOf(d.vec3f), access: "readonly" },
   currentBodyIndex: { storage: d.i32, access: "readonly" },
 });
 
@@ -160,8 +163,10 @@ const mainComputeBindGroup = root.createBindGroup(computeLayout, {
 const data: {
   mainRenderPipeline: TgpuRenderPipeline<{ color: d.Vec4f; emission: d.Vec4f }>;
   mainRenderBindGroup: TgpuBindGroup;
-  verticies: TgpuBuffer<d.WgslArray<d.Vec3f>> & StorageFlag & VertexFlag;
-  normals: TgpuBuffer<d.WgslArray<d.Vec3f>> & StorageFlag & VertexFlag;
+  verticies: TgpuBuffer<d.WgslArray<d.U32>> & StorageFlag & VertexFlag;
+  normals: TgpuBuffer<d.WgslArray<d.U32>> & StorageFlag & VertexFlag;
+  trickVerticies: TgpuBuffer<d.Disarray<d.float16x4>> & VertexFlag;
+  trickNormals: TgpuBuffer<d.Disarray<d.float16x4>> & VertexFlag;
   orbitRenderPipeline: TgpuRenderPipeline<d.Vec4f>;
 }[] = [];
 
@@ -179,7 +184,7 @@ export function SetUpBuffersAndData() {
   data.length = 0;
 
   INITIAL_BODIES.forEach((body, i) => {
-    const { verticies, normals } = sphere.generateSphere(root, SPHERE_DIVISIONS, i);
+    const { verticies, normals, trickVerticies, trickNormals } = sphere.generateSphere(root, SPHERE_DIVISIONS, i);
 
     const mainRenderBindGroup = root.createBindGroup(mainLayout, {
       bodies: bodiesBuffer,
@@ -188,13 +193,12 @@ export function SetUpBuffersAndData() {
       velocities: velocitiesBuffer,
       currentBodyIndex: currentBodyIndexBuffer,
       gravityMultiplier: gravityMultiplierBuffer,
-      verticies: verticies,
-      normals: normals
     });
 
     const mainRenderPipeline = root.createRenderPipeline({
+      attribs: { inVertex: positionVertexLayout.attrib, inNormal: normalVertexLayout.attrib },
       vertex: tgpu.vertexFn({
-        in: { vid: d.builtin.vertexIndex },
+        in: { vid: d.builtin.vertexIndex, inVertex: d.vec4f, inNormal: d.vec4f },
         out: {
           position: d.builtin.position,
           point: d.vec3f,
@@ -206,12 +210,12 @@ export function SetUpBuffersAndData() {
           vid: d.interpolate("flat", d.i32),
           bodyId: d.interpolate("flat", d.i32),
         },
-      })(({ vid }) => {
+      })(({ vid, inVertex, inNormal }) => {
         "use gpu";
         const camera = cameraUniform.$;
         const offset = mainLayout.$.offsets[mainLayout.$.currentBodyIndex];
-        const vertex = mainLayout.$.verticies[vid];
-        const normal = mainLayout.$.normals[vid];
+        const vertex = inVertex.xyz;
+        const normal = inNormal.xyz;
 
         const point = vertex.mul(body.radius).add(offset - camera.pos.xyz);
         const position = camera.projection.mul(camera.view).mul(d.vec4f(point, 1));
@@ -304,7 +308,7 @@ export function SetUpBuffersAndData() {
       },
     });
 
-    data.push({ mainRenderPipeline, verticies, normals, orbitRenderPipeline, mainRenderBindGroup });
+    data.push({ mainRenderPipeline, verticies, normals, trickVerticies, trickNormals, orbitRenderPipeline, mainRenderBindGroup });
   });
 
   frame = 0;
@@ -689,6 +693,8 @@ function render() {
         depthClearValue: 1,
         depthStoreOp: "store",
       })
+      .with(positionVertexLayout, item.trickVerticies)
+      .with(normalVertexLayout, item.trickNormals)
       .with(item.mainRenderBindGroup)
       .draw(sphere.getVertexAmount(SPHERE_DIVISIONS), 1);
 

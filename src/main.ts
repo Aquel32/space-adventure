@@ -26,7 +26,7 @@ import { CelestianBody, GRAVITY_MULTIPLIER, INITIAL_BODIES } from "./simulation-
 
 document.querySelector<HTMLDivElement>("#app")!.innerHTML = `
 <main>
-  <canvas id="canvas" width="600" height="600"></canvas>
+  <canvas id="canvas" width="2560" height="1440"></canvas>
 </main>
 `;
 
@@ -47,6 +47,11 @@ export function SetBlurIterations(newbi: number) {
 export let RENDER_ORBITS = true;
 export function SetRenderOrbits(newRo: boolean) {
   RENDER_ORBITS = newRo;
+}
+
+export let DEBUG_NORMALS = false;
+export function SetDebugNormals(newDn: boolean) {
+  DEBUG_NORMALS = newDn;
 }
 
 const ORBIT_POINTS = 10000;
@@ -99,6 +104,7 @@ const mainSampler = root.createSampler({
 
 const positionVertexLayout = tgpu.vertexLayout(d.disarrayOf(d.float16x4));
 const normalVertexLayout = tgpu.vertexLayout(d.disarrayOf(d.float16x4));
+const normalDebugVertexLayout = tgpu.vertexLayout(d.disarrayOf(d.float16x4));
 
 const mainLayout = tgpu.bindGroupLayout({
   gravityMultiplier: { storage: d.f32, access: "readonly" },
@@ -168,6 +174,9 @@ const data: {
   trickVerticies: TgpuBuffer<d.Disarray<d.float16x4>> & VertexFlag;
   trickNormals: TgpuBuffer<d.Disarray<d.float16x4>> & VertexFlag;
   orbitRenderPipeline: TgpuRenderPipeline<d.Vec4f>;
+  normalDebugPipeline: TgpuRenderPipeline<d.Vec4f>;
+  debugNormalVerticies: TgpuBuffer<d.WgslArray<d.U32>> & StorageFlag;
+  trickDebugNormalVerticies: TgpuBuffer<d.Disarray<d.float16x4>> & VertexFlag;
 }[] = [];
 
 const SPHERE_DIVISIONS = 8;
@@ -184,7 +193,7 @@ export function SetUpBuffersAndData() {
   data.length = 0;
 
   INITIAL_BODIES.forEach((body, i) => {
-    const { verticies, normals, trickVerticies, trickNormals } = sphere.generateSphere(root, SPHERE_DIVISIONS, i);
+    const { verticies, normals, trickVerticies, trickNormals, debugNormalVerticies, trickDebugNormalVerticies } = sphere.generateSphere(root, SPHERE_DIVISIONS, i, body.isSphere);
 
     const mainRenderBindGroup = root.createBindGroup(mainLayout, {
       bodies: bodiesBuffer,
@@ -221,7 +230,15 @@ export function SetUpBuffersAndData() {
         const position = camera.projection.mul(camera.view).mul(d.vec4f(point, 1));
         const sunPosition = mainLayout.$.offsets[0] - camera.pos.xyz;
 
-        let groundColor = d.vec4f(body.colors[2].color);
+        const height = std.length(vertex);
+        const colors = mainLayout.$.bodies[mainLayout.$.currentBodyIndex].colors;
+        let groundColor = d.vec4f(body.colors[0].color);
+
+        for (let i = 0; i < colors.length; i++) {
+          if (height >= colors[i].height) {
+            groundColor = d.vec4f(colors[i].color);
+          }
+        }
 
         let emits = 0;
         if (mainLayout.$.currentBodyIndex === 0) {
@@ -254,16 +271,16 @@ export function SetUpBuffersAndData() {
 
         const reflectionDirection = std.reflect(surfaceToLightDirection.mul(-1), normal.xyz);
         const surfaceToViewDirection = std.normalize(point * - 1);
-        const specular = std.pow(std.max(0, std.dot(reflectionDirection, surfaceToViewDirection)), 16) * 0.5;
+        const specular = std.pow(std.max(0, std.dot(reflectionDirection, surfaceToViewDirection)), 150) * 0.5;
 
         const finalColor = groundColor * diffuse + specular;
 
         let emission = d.vec4f(0, 0, 0, 1);
-        // const treshold = 0.8;
-        // if (finalColor.r > treshold || finalColor.g > treshold || finalColor.b > treshold) {
-        //   const val = (light + specular - treshold) / (treshold);
-        //   emission = d.vec4f(val, val, val, 1);
-        // }
+        const treshold = 0.8;
+        if (finalColor.r > treshold || finalColor.g > treshold || finalColor.b > treshold) {
+          const val = (diffuse + specular - treshold) / (treshold);
+          emission = d.vec4f(val, val, val, 1);
+        }
 
         return {
           color: finalColor,
@@ -308,7 +325,42 @@ export function SetUpBuffersAndData() {
       },
     });
 
-    data.push({ mainRenderPipeline, verticies, normals, trickVerticies, trickNormals, orbitRenderPipeline, mainRenderBindGroup });
+    const normalDebugPipeline = root.createRenderPipeline({
+      attribs: { inVertex: normalDebugVertexLayout.attrib },
+      vertex: tgpu.vertexFn({
+        in: { vid: d.builtin.vertexIndex, inVertex: d.vec4f },
+        out: {
+          position: d.builtin.position,
+        },
+      })(({ vid, inVertex }) => {
+        "use gpu";
+        const camera = cameraUniform.$;
+        const offset = mainLayout.$.offsets[mainLayout.$.currentBodyIndex];
+        const vertex = inVertex.xyz;
+
+        const point = vertex.mul(body.radius).add(offset - camera.pos.xyz);
+        const position = camera.projection.mul(camera.view).mul(d.vec4f(point, 1));
+
+        return {
+          position,
+        };
+      }),
+      fragment: ({ $position }) => {
+        "use gpu";
+
+        return d.vec4f(1, 1, 1, 1);
+      },
+      depthStencil: {
+        format: "depth24plus",
+        depthWriteEnabled: true,
+        depthCompare: "less",
+      },
+      primitive: {
+        topology: "line-list"
+      },
+    });
+
+    data.push({ mainRenderPipeline, verticies, normals, trickVerticies, trickNormals, normalDebugPipeline, debugNormalVerticies, trickDebugNormalVerticies, orbitRenderPipeline, mainRenderBindGroup });
   });
 
   frame = 0;
@@ -718,17 +770,22 @@ function render() {
       .draw(6, 1);
   }
 
-  // const texture = sphere.generateTexture(INITIAL_BODIES[3], root, SPHERE_DIVISIONS);
-  // const testBindGroup = root.createBindGroup(orbitFinalRenderLayout, {
-  //   texture,
-  //   sampler: mainSampler,
-  // })
-
-  // finalOrbitRenderPipeline
-  //   .withColorAttachment({ view: context, loadOp: "load", clearValue: { r: 0, g: 0, b: 0, a: 1 } })
-  //   .with(testBindGroup)
-  //   .draw(6, 1);
-
+  if (DEBUG_NORMALS) {
+    data.forEach((item, i) => {
+      currentBodyIndexBuffer.write(i);
+      item.normalDebugPipeline
+        .withColorAttachment({ view: context, loadOp: "load", clearValue: { r: 0, g: 0, b: 0, a: 1 } })
+        .withDepthStencilAttachment({
+          view: depthTexture,
+          depthLoadOp: "load",
+          depthClearValue: 1,
+          depthStoreOp: "store",
+        })
+        .with(normalDebugVertexLayout, item.trickDebugNormalVerticies)
+        .with(item.mainRenderBindGroup)
+        .draw(sphere.getVertexAmount(SPHERE_DIVISIONS) * 2, 1);
+    });
+  }
 
   frame++;
   requestAnimationFrame(render);

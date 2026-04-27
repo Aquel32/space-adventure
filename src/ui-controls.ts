@@ -1,4 +1,4 @@
-import { GAUSIAN_ITERATIONS, PIXEL_SCALE_BUFFER, RENDER_ORBITS, SetBlurIterations, SetRenderOrbits, SetUpBuffersAndData, UpdateAttachedBody } from "./main";
+import { DEBUG_NORMALS, GAUSIAN_ITERATIONS, PIXEL_SCALE_BUFFER, RENDER_ORBITS, SetBlurIterations, SetDebugNormals, SetRenderOrbits, SetUpBuffersAndData, UpdateAttachedBody } from "./main";
 import { GRAVITY_MULTIPLIER, INITIAL_BODIES, SetGravityMultiplier } from "./simulation-data";
 import { SetEpsilon, SetStrength } from "./sphere";
 
@@ -16,6 +16,7 @@ export function SetUpControls() {
           <label>Render Orbits: <input type="checkbox" class="ro" ${RENDER_ORBITS ? "checked" : ""} /></label>
           <label>Strength: <input type="number" class="str reload" value="${0.1}" /></label>
           <label>Epsilon: <input type="number" class="eps reload" value="${0.001}" /></label>
+           <label>Debug Normals: <input type="checkbox" class="dn" ${DEBUG_NORMALS ? "checked" : ""} /></label>
           </div>
         <div class="body-controls">
         
@@ -75,6 +76,11 @@ export function SetUpControls() {
   document.querySelector(".eps")!.addEventListener("change", (e) => {
     const newEps = parseFloat((e.target as HTMLInputElement).value);
     SetEpsilon(newEps);
+  });
+
+  document.querySelector(".dn")!.addEventListener("change", (e) => {
+    const newDn = (e.target as HTMLInputElement).checked;
+    SetDebugNormals(newDn);
   });
 
   document.querySelectorAll(".body").forEach((control, i) => {

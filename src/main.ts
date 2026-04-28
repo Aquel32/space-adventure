@@ -19,19 +19,21 @@ import tgpu, {
   type VertexFlag,
 } from "typegpu";
 import * as sphere from "./sphere";
-import { GenerateControls, SetUpControls } from "./ui-controls";
 import { BODY_COUNT_CONST, CelestianBody, INITIAL_BODIES } from "./data/simulation-data";
-import { ATTACHED_BODY_INDEX, DEBUG_NORMALS, GRAVITY_MULTIPLIER, ORBIT_PREDICTION_STEPS, ORBIT_PREDICTION_STEPS_CONST, RENDER_ORBITS, SetAttachedBody } from "./data/settings";
+import { ATTACHED_BODY_INDEX, DEBUG_NORMALS, ORBIT_PREDICTION_STEPS, RENDER_ORBITS, SetAttachedBody, SIMULATION_SPEED } from "./data/settings";
 import { PrepareBloom } from "./postprocessing/bloom";
-import { PrepareSimulation } from "./simulation";
+import { bodiesToArrays, PrepareSimulation } from "./simulation";
+import { PrepareUI } from "./ui-controls";
+import { writeSoA } from "typegpu/common";
 
 document.querySelector<HTMLDivElement>("#app")!.innerHTML = `
 <main>
   <canvas id="canvas" width="2560" height="1440"></canvas>
+  <p id="veloasdasdadadada"></p>
 </main>
 `;
 
-GenerateControls();
+const ui = PrepareUI();
 
 const root = await tgpu.init({
   device: { requiredLimits: { "maxBufferSize": 4294967292, "maxStorageBufferBindingSize": 4294967292 } },
@@ -59,21 +61,24 @@ const positionVertexLayout = tgpu.vertexLayout(d.disarrayOf(d.float16x4));
 const normalVertexLayout = tgpu.vertexLayout(d.disarrayOf(d.float16x4));
 const normalDebugVertexLayout = tgpu.vertexLayout(d.disarrayOf(d.float16x4));
 
-const mainLayout = tgpu.bindGroupLayout({
-  bodies: { storage: d.arrayOf(CelestianBody), access: "readonly" },
-  currentBodyIndex: { storage: d.i32, access: "readonly" },
+const mainBindGroupLayout = tgpu.bindGroupLayout({
+  positions: { storage: d.arrayOf(d.f32), access: "readonly" },
+  velocities: { storage: d.arrayOf(d.f32), access: "readonly" },
 });
 
 let bodies = INITIAL_BODIES;
-const bodiesBuffer = root
-  .createBuffer(d.arrayOf(CelestianBody, INITIAL_BODIES.length))
-  .$usage("storage", "uniform");
-const currentBodyIndexBuffer = root.createBuffer(d.i32).$usage("storage", "uniform");
+const bodiesUniform = root.createUniform(d.arrayOf(CelestianBody, INITIAL_BODIES.length));
+const bodiesPositionsBuffer = root.createBuffer(d.arrayOf(d.f32, INITIAL_BODIES.length * 3)).$usage("storage");
+const bodiesVelocitiesBuffer = root.createBuffer(d.arrayOf(d.f32, INITIAL_BODIES.length * 3)).$usage("storage");
+const positionsArray = new Float32Array(INITIAL_BODIES.length * 3); // CPU BUFFER
+const velocitiesArray = new Float32Array(INITIAL_BODIES.length * 3); // CPU BUFFER
 
-const mainRenderBindGroup = root.createBindGroup(mainLayout, {
-  bodies: bodiesBuffer,
-  currentBodyIndex: currentBodyIndexBuffer,
+const mainBindGroup = root.createBindGroup(mainBindGroupLayout, {
+  positions: bodiesPositionsBuffer,
+  velocities: bodiesVelocitiesBuffer,
 });
+
+const currentBodyIndexUniform = root.createUniform(d.i32);
 
 const bodiesRenderData: {
   verticies: TgpuBuffer<d.WgslArray<d.U32>> & StorageFlag & VertexFlag;
@@ -85,7 +90,12 @@ const bodiesRenderData: {
 }[] = [];
 
 export function SetUpBodiesRenderData() {
-  bodiesBuffer.write(bodies);
+  bodiesUniform.write(bodies);
+  const { positions: initialPositionsArray, velocities: initialVelocitiesArray } = bodiesToArrays(bodies);
+  positionsArray.set(initialPositionsArray);
+  velocitiesArray.set(initialVelocitiesArray);
+  bodiesPositionsBuffer.write(initialPositionsArray);
+  bodiesVelocitiesBuffer.write(initialVelocitiesArray);
 
   bodiesRenderData.length = 0;
   bodies.forEach((body, i) => {
@@ -120,15 +130,21 @@ const mainRenderPipeline = root.createRenderPipeline({
     },
   })(({ vid, inVertex, inNormal }) => {
     "use gpu";
-    const body = mainLayout.$.bodies[mainLayout.$.currentBodyIndex];
+    const bodyIndex = currentBodyIndexUniform.$;
+    const body = bodiesUniform.$[bodyIndex];
     const camera = cameraUniform.$;
-    const offset = body.position;
+    const offset = d.vec3f(
+      mainBindGroupLayout.$.positions[bodyIndex * 3],
+      mainBindGroupLayout.$.positions[bodyIndex * 3 + 1],
+      mainBindGroupLayout.$.positions[bodyIndex * 3 + 2],
+    );
+
     const vertex = inVertex.xyz;
     const normal = inNormal.xyz;
 
     const point = vertex.mul(body.radius).add(offset);
     const position = camera.projection.mul(camera.view).mul(d.vec4f(point, 1));
-    const sunPosition = mainLayout.$.bodies[0].position;
+    const sunPosition = bodiesUniform.$[0].position;
 
     const height = std.length(vertex);
     const colors = body.colors;
@@ -141,7 +157,7 @@ const mainRenderPipeline = root.createRenderPipeline({
     }
 
     let emits = 0;
-    if (mainLayout.$.currentBodyIndex === 0) {
+    if (currentBodyIndexUniform.$ === 0) {
       emits = 1;
     }
 
@@ -154,7 +170,7 @@ const mainRenderPipeline = root.createRenderPipeline({
       sunPosition,
       emits,
       cameraPos: camera.pos.xyz,
-      bodyId: mainLayout.$.currentBodyIndex,
+      bodyId: currentBodyIndexUniform.$,
     };
   }),
   fragment: ({ $position, groundColor, normal, vid, sunPosition, point, emits, cameraPos, bodyId }) => {
@@ -207,9 +223,15 @@ const normalDebugPipeline = root.createRenderPipeline({
     },
   })(({ vid, inVertex }) => {
     "use gpu";
-    const body = mainLayout.$.bodies[mainLayout.$.currentBodyIndex];
+    const bodyIndex = currentBodyIndexUniform.$;
+    const body = bodiesUniform.$[bodyIndex];
     const camera = cameraUniform.$;
-    const offset = body.position;
+
+    const offset = d.vec3f(
+      mainBindGroupLayout.$.positions[bodyIndex * 3],
+      mainBindGroupLayout.$.positions[bodyIndex * 3 + 1],
+      mainBindGroupLayout.$.positions[bodyIndex * 3 + 2],
+    );
     const vertex = inVertex.xyz;
 
     const point = vertex.mul(body.radius).add(offset);
@@ -241,33 +263,42 @@ export function moveCameraToAttachedObject() {
   camera.setPosition(bodies[ATTACHED_BODY_INDEX].position.sub(d.vec3f(0, 0, bodies[ATTACHED_BODY_INDEX].radius * 3)));
 }
 
-function alignCameraToAttachedObject() {
+function moveCameraWithAttachedObjectVelocity() {
   if (ATTACHED_BODY_INDEX === -1) return;
 
-  const attachedBody = bodies[ATTACHED_BODY_INDEX];
   const cameraPosition = camera.state.pos;
 
-  const newCameraPos = cameraPosition.add(attachedBody.velocity)
+  const attachedBodyVelocity = d.vec3f(
+    velocitiesArray[ATTACHED_BODY_INDEX * 3],
+    velocitiesArray[ATTACHED_BODY_INDEX * 3 + 1],
+    velocitiesArray[ATTACHED_BODY_INDEX * 3 + 2],
+  );
+
+  const newCameraPos = cameraPosition.add(attachedBodyVelocity.mul(SIMULATION_SPEED));
   camera.setPosition(newCameraPos);
 }
 
 const simulation = PrepareSimulation(root, canvas, context, cameraUniform);
 const bloomEffect = PrepareBloom(root, canvas, context, pixelScaleUniform);
 
+simulation.predictOrbits(bodies);
+
 function render() {
   camera.updatePosition();
 
-  bodies = simulation.simulateGravity(bodies);
-  bodiesBuffer.write(bodies);
+  simulation.simulateGravity(positionsArray, velocitiesArray, bodies);
 
-  alignCameraToAttachedObject();
+  bodiesPositionsBuffer.write(positionsArray);
+  bodiesVelocitiesBuffer.write(velocitiesArray);
+
+  moveCameraWithAttachedObjectVelocity();
 
   if (frame % (ORBIT_PREDICTION_STEPS / 2) === 0) {
     simulation.predictOrbits(bodies);
   }
 
   bodiesRenderData.forEach((item, i) => {
-    currentBodyIndexBuffer.write(i);
+    currentBodyIndexUniform.write(i);
 
     mainRenderPipeline
       .withColorAttachment({
@@ -284,24 +315,22 @@ function render() {
         depthClearValue: 1,
         depthStoreOp: "store",
       })
+      .with(mainBindGroup)
       .with(positionVertexLayout, item.trickVerticies)
       .with(normalVertexLayout, item.trickNormals)
-      .with(mainRenderBindGroup)
       .draw(sphere.getVertexAmount(), 1);
-
-    simulation.prepareOrbitRender(i);
   });
 
   bloomEffect.applyGausianBlur();
   bloomEffect.render();
 
   if (RENDER_ORBITS) {
-    simulation.renderOrbits();
+    simulation.renderOrbits(bodies);
   }
 
   if (DEBUG_NORMALS) {
     bodiesRenderData.forEach((item, i) => {
-      currentBodyIndexBuffer.write(i);
+      currentBodyIndexUniform.write(i);
       normalDebugPipeline
         .withColorAttachment({ view: context, loadOp: "load", clearValue: { r: 0, g: 0, b: 0, a: 1 } })
         .withDepthStencilAttachment({
@@ -310,8 +339,8 @@ function render() {
           depthClearValue: 1,
           depthStoreOp: "store",
         })
+        .with(mainBindGroup)
         .with(normalDebugVertexLayout, item.trickDebugNormalVerticies)
-        .with(mainRenderBindGroup)
         .draw(sphere.getVertexAmount() * 2, 1);
     });
   }
@@ -320,7 +349,7 @@ function render() {
   requestAnimationFrame(render);
 }
 
-SetUpControls();
+ui.SetUpControls();
 SetUpBodiesRenderData();
 SetAttachedBody(3); // attach to earth
 

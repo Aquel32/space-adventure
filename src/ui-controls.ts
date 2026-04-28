@@ -1,12 +1,15 @@
-import { DEBUG_NORMALS, GAUSIAN_ITERATIONS, GRAVITY_MULTIPLIER, PIXEL_SCALE, RENDER_ORBITS, SetAttachedBody, SetDebugNormals, SetGausianIterations, SetGravityMultiplier, SetPixelScale, SetRenderOrbits } from "./data/settings";
+import { DEBUG_NORMALS, GAUSIAN_ITERATIONS, GRAVITY_MULTIPLIER, PIXEL_SCALE, RENDER_ORBITS, SetAttachedBody, SetDebugNormals, SetGausianIterations, SetGravityMultiplier, SetPixelScale, SetRenderOrbits, SetSimulationSpeed, SIMULATION_SPEED } from "./data/settings";
 import { INITIAL_BODIES } from "./data/simulation-data";
 import { SetUpBodiesRenderData } from "./main";
 import { SetEpsilon, SetStrength } from "./sphere";
 
-export function GenerateControls() {
+export function PrepareUI() {
+  let controlsSetUp = false;
+
   document.querySelector("main")!.innerHTML += `<section id="controls">
         <div class="main-controls">
-          <!--<label>Gravity Multiplier: <input name="gravity" type="number" class="g" value="${GRAVITY_MULTIPLIER}" /></label>-->
+          <label>Gravity Multiplier: <input name="gravity" type="number" class="g reload" value="${GRAVITY_MULTIPLIER}" /></label>
+          <label>Simulation Speed: <input name="simulation-speed" type="number" class="ss reload" value="${SIMULATION_SPEED}" /></label>
           <label>Gaussian Iterations: <input name="gaussian-iterations" type="number" class="bi" value="${GAUSIAN_ITERATIONS}" /></label>
           <label>Pixel Scale: <input name="pixel-scale" type="number" class="ps" value="${PIXEL_SCALE}" /></label>
           <label>Attached Body: <input name="attached-body" type="number" class="ab" value="${3}" /></label>
@@ -39,93 +42,108 @@ export function GenerateControls() {
   //           </div>
   //       `,
   // ).join("");
-}
 
-export function SetUpControls() {
-  // document.querySelector(".g")!.addEventListener("change", (e) => {
-  //   const newGravityMultiplier = parseFloat((e.target as HTMLInputElement).value);
-  //   SetGravityMultiplier(newGravityMultiplier);
-  // });
+  function SetUpControls() {
+    if (controlsSetUp) return;
 
-  document.querySelector(".bi")!.addEventListener("change", (e) => {
-    const newGausianIterations = parseFloat((e.target as HTMLInputElement).value);
-    SetGausianIterations(newGausianIterations);
-  });
-
-  document.querySelector(".ps")!.addEventListener("change", (e) => {
-    const newPixelScale = parseFloat((e.target as HTMLInputElement).value);
-    SetPixelScale(newPixelScale);
-  });
-
-  document.querySelector(".ab")!.addEventListener("change", (e) => {
-    const newAttachedBodyIndex = parseFloat((e.target as HTMLInputElement).value);
-    SetAttachedBody(newAttachedBodyIndex);
-  });
-
-  document.querySelector(".ro")!.addEventListener("change", (e) => {
-    const newRenderOrbits = (e.target as HTMLInputElement).checked;
-    SetRenderOrbits(newRenderOrbits);
-  });
-
-  document.querySelector(".str")!.addEventListener("change", (e) => {
-    const newStr = parseFloat((e.target as HTMLInputElement).value);
-    SetStrength(newStr);
-  });
-
-  document.querySelector(".eps")!.addEventListener("change", (e) => {
-    const newEps = parseFloat((e.target as HTMLInputElement).value);
-    SetEpsilon(newEps);
-  });
-
-  document.querySelector(".dn")!.addEventListener("change", (e) => {
-    const newDebugNormals = (e.target as HTMLInputElement).checked;
-    SetDebugNormals(newDebugNormals);
-  });
-
-  document.querySelectorAll(".body").forEach((control, i) => {
-    const massInput = control.querySelector(".mass") as HTMLInputElement;
-    const radiusInput = control.querySelector(".radius") as HTMLInputElement;
-    const positionXInput = control.querySelector(".position-x") as HTMLInputElement;
-    const positionYInput = control.querySelector(".position-y") as HTMLInputElement;
-    const positionZInput = control.querySelector(".position-z") as HTMLInputElement;
-    const velocityXInput = control.querySelector(".velocity-x") as HTMLInputElement;
-    const velocityYInput = control.querySelector(".velocity-y") as HTMLInputElement;
-    const velocityZInput = control.querySelector(".velocity-z") as HTMLInputElement;
-
-    massInput.addEventListener("change", () => {
-      INITIAL_BODIES[i].mass = parseFloat(massInput.value);
+    document.querySelector(".g")!.addEventListener("change", (e) => {
+      const newGravityMultiplier = parseFloat((e.target as HTMLInputElement).value);
+      SetGravityMultiplier(newGravityMultiplier);
     });
 
-    radiusInput.addEventListener("change", () => {
-      INITIAL_BODIES[i].radius = parseFloat(radiusInput.value);
+    document.querySelector(".ss")!.addEventListener("change", (e) => {
+      const newSimulationSpeed = parseFloat((e.target as HTMLInputElement).value);
+      SetSimulationSpeed(newSimulationSpeed);
     });
 
-    positionXInput.addEventListener("change", () => {
-      INITIAL_BODIES[i].position.x = parseFloat(positionXInput.value);
+    document.querySelector(".bi")!.addEventListener("change", (e) => {
+      const newGausianIterations = parseFloat((e.target as HTMLInputElement).value);
+      SetGausianIterations(newGausianIterations);
     });
 
-    positionYInput.addEventListener("change", () => {
-      INITIAL_BODIES[i].position.y = parseFloat(positionYInput.value);
+    document.querySelector(".ps")!.addEventListener("change", (e) => {
+      const newPixelScale = parseFloat((e.target as HTMLInputElement).value);
+      SetPixelScale(newPixelScale);
     });
 
-    positionZInput.addEventListener("change", () => {
-      INITIAL_BODIES[i].position.z = parseFloat(positionZInput.value);
+    document.querySelector(".ab")!.addEventListener("change", (e) => {
+      const newAttachedBodyIndex = parseFloat((e.target as HTMLInputElement).value);
+      SetAttachedBody(newAttachedBodyIndex);
     });
 
-    velocityXInput.addEventListener("change", () => {
-      INITIAL_BODIES[i].velocity.x = parseFloat(velocityXInput.value);
+    document.querySelector(".ro")!.addEventListener("change", (e) => {
+      const newRenderOrbits = (e.target as HTMLInputElement).checked;
+      SetRenderOrbits(newRenderOrbits);
     });
 
-    velocityYInput.addEventListener("change", () => {
-      INITIAL_BODIES[i].velocity.y = parseFloat(velocityYInput.value);
+    document.querySelector(".str")!.addEventListener("change", (e) => {
+      const newStr = parseFloat((e.target as HTMLInputElement).value);
+      SetStrength(newStr);
     });
 
-    velocityZInput.addEventListener("change", () => {
-      INITIAL_BODIES[i].velocity.z = parseFloat(velocityZInput.value);
+    document.querySelector(".eps")!.addEventListener("change", (e) => {
+      const newEps = parseFloat((e.target as HTMLInputElement).value);
+      SetEpsilon(newEps);
     });
-  });
 
-  document.querySelectorAll("input.reload").forEach((input) => {
-    input.addEventListener("change", SetUpBodiesRenderData);
-  });
+    document.querySelector(".dn")!.addEventListener("change", (e) => {
+      const newDebugNormals = (e.target as HTMLInputElement).checked;
+      SetDebugNormals(newDebugNormals);
+    });
+
+    document.querySelectorAll(".body").forEach((control, i) => {
+      const massInput = control.querySelector(".mass") as HTMLInputElement;
+      const radiusInput = control.querySelector(".radius") as HTMLInputElement;
+      const positionXInput = control.querySelector(".position-x") as HTMLInputElement;
+      const positionYInput = control.querySelector(".position-y") as HTMLInputElement;
+      const positionZInput = control.querySelector(".position-z") as HTMLInputElement;
+      const velocityXInput = control.querySelector(".velocity-x") as HTMLInputElement;
+      const velocityYInput = control.querySelector(".velocity-y") as HTMLInputElement;
+      const velocityZInput = control.querySelector(".velocity-z") as HTMLInputElement;
+
+      massInput.addEventListener("change", () => {
+        INITIAL_BODIES[i].mass = parseFloat(massInput.value);
+      });
+
+      radiusInput.addEventListener("change", () => {
+        INITIAL_BODIES[i].radius = parseFloat(radiusInput.value);
+      });
+
+      positionXInput.addEventListener("change", () => {
+        INITIAL_BODIES[i].position.x = parseFloat(positionXInput.value);
+      });
+
+      positionYInput.addEventListener("change", () => {
+        INITIAL_BODIES[i].position.y = parseFloat(positionYInput.value);
+      });
+
+      positionZInput.addEventListener("change", () => {
+        INITIAL_BODIES[i].position.z = parseFloat(positionZInput.value);
+      });
+
+      velocityXInput.addEventListener("change", () => {
+        INITIAL_BODIES[i].velocity.x = parseFloat(velocityXInput.value);
+      });
+
+      velocityYInput.addEventListener("change", () => {
+        INITIAL_BODIES[i].velocity.y = parseFloat(velocityYInput.value);
+      });
+
+      velocityZInput.addEventListener("change", () => {
+        INITIAL_BODIES[i].velocity.z = parseFloat(velocityZInput.value);
+      });
+    });
+
+    document.querySelectorAll("input.reload").forEach((input) => {
+      input.addEventListener("change", SetUpBodiesRenderData);
+    });
+
+    controlsSetUp = true;
+
+  }
+
+
+  return {
+    SetUpControls
+  }
 }

@@ -7,6 +7,12 @@ export function SetGravityMultiplier(newGravityMultiplier: number) {
     GRAVITY_MULTIPLIER = newGravityMultiplier;
 }
 
+export let SIMULATION_SPEED = 1;
+export function SetSimulationSpeed(newSimulationSpeed: number) {
+    SIMULATION_SPEED = newSimulationSpeed;
+    console.log("Cha", SIMULATION_SPEED);
+}
+
 export let GAUSIAN_ITERATIONS = d.f32(5);
 export function SetGausianIterations(newGaussianIterations: number) {
     GAUSIAN_ITERATIONS = newGaussianIterations;

@@ -1,6 +1,6 @@
 // oxlint-disable-next-line no-unassigned-import
 import { cos, normalize, select, sin, step } from "typegpu/std";
-import { Camera, setupFirstPersonCamera } from "./setup-first-person-camera";
+import { calculateProj, calculateView, Camera, setupFirstPersonCamera } from "./setup-first-person-camera";
 import { perlin2d, perlin3d } from '@typegpu/noise'
 import "./style.css";
 import tgpu, {
@@ -23,6 +23,8 @@ import { i32, type v3f, type v4f } from "typegpu/data";
 import * as sphere from "./sphere";
 import { SetUpControls } from "./ui-controls";
 import { CelestianBody, GRAVITY_MULTIPLIER, INITIAL_BODIES } from "./simulation-data";
+import { cubeDirections } from "./sphere";
+import * as m from "wgpu-matrix";
 
 document.querySelector<HTMLDivElement>("#app")!.innerHTML = `
 <main>
@@ -64,28 +66,33 @@ SetUpControls();
 const canvas = document.querySelector<HTMLCanvasElement>("#canvas")!;
 const context = root.configureContext({ canvas });
 
-const attachedObjectIndexUniform = root.createUniform(i32);
-
 const cameraBuffer = root.createBuffer(Camera).$usage("storage", "uniform");
 const cameraMutable = cameraBuffer.as("mutable");
 const cameraUniform = cameraBuffer.as("uniform");
 
-const { updatePosition, setPosition } = setupFirstPersonCamera(
+const { cameraState, updatePosition, setPosition } = setupFirstPersonCamera(
   canvas,
   {
-    initPos: d.vec3f(0, 0, 0),
+    initPos: d.vec3f(20, 0, 0),
     speed: d.vec3f(0.01, 0.1, 5),
   },
   (props) => {
     cameraBuffer.patch(props);
   },
 );
+let bodies = INITIAL_BODIES;
 
+let attachedBodyIndex = -1;
 export function UpdateAttachedBody(newIndex: number) {
-  if (newIndex < 0 || newIndex >= INITIAL_BODIES.length) return;
+  if (newIndex == -1) {
+    attachedBodyIndex = -1;
+    return;
+  }
 
-  attachedObjectIndexUniform.write(newIndex);
-  setPosition(d.vec3f(-INITIAL_BODIES[newIndex].radius - 1, 0, 0));
+  if (newIndex < 0 || newIndex >= bodies.length) return;
+
+  attachedBodyIndex = newIndex;
+  setPosition(bodies[newIndex].position.sub(d.vec3f(0, 0, bodies[newIndex].radius * 3)));
 }
 UpdateAttachedBody(3)
 
@@ -109,19 +116,7 @@ const normalDebugVertexLayout = tgpu.vertexLayout(d.disarrayOf(d.float16x4));
 const mainLayout = tgpu.bindGroupLayout({
   gravityMultiplier: { storage: d.f32, access: "readonly" },
   bodies: { storage: d.arrayOf(CelestianBody), access: "readonly" },
-  masses: { storage: d.arrayOf(d.f32), access: "readonly" },
-  offsets: { storage: d.arrayOf(d.vec3f), access: "readonly" },
-  velocities: { storage: d.arrayOf(d.vec3f), access: "readonly" },
   currentBodyIndex: { storage: d.i32, access: "readonly" },
-});
-
-const computeLayout = tgpu.bindGroupLayout({
-  gravityMultiplier: { storage: d.f32, access: "mutable" },
-  bodies: { storage: d.arrayOf(CelestianBody), access: "mutable" },
-  masses: { storage: d.arrayOf(d.f32), access: "mutable" },
-  offsets: { storage: d.arrayOf(d.vec3f), access: "mutable" },
-  velocities: { storage: d.arrayOf(d.vec3f), access: "mutable" },
-  currentBodyIndex: { storage: d.i32, access: "mutable" },
 });
 
 const orbitPrepareRenderLayout = tgpu.bindGroupLayout({
@@ -134,37 +129,10 @@ const orbitFinalRenderLayout = tgpu.bindGroupLayout({
   sampler: { sampler: "filtering", access: "readonly" },
 });
 
-const orbitComputeLayout = tgpu.bindGroupLayout({
-  orbitPointIndex: { storage: d.i32, access: "mutable" },
-  offsets: { storage: d.arrayOf(d.vec3f), access: "mutable" },
-  velocities: { storage: d.arrayOf(d.vec3f), access: "mutable" },
-  vertecies: { storage: d.arrayOf(d.vec3f), access: "mutable" },
-  initialVelocities: { storage: d.arrayOf(d.vec3f), access: "mutable" },
-  initialOffsets: { storage: d.arrayOf(d.vec3f), access: "mutable" },
-  masses: { storage: d.arrayOf(d.f32), access: "mutable" },
-  gravityMultiplier: { storage: d.f32, access: "mutable" },
-});
-
 const bodiesBuffer = root
   .createBuffer(d.arrayOf(CelestianBody, INITIAL_BODIES.length))
   .$usage("storage", "uniform");
-const massesBuffer = root.createBuffer(d.arrayOf(d.f32, INITIAL_BODIES.length)).$usage("storage");
-const offsetsBuffer = root
-  .createBuffer(d.arrayOf(d.vec3f, INITIAL_BODIES.length))
-  .$usage("storage", "uniform");
-const velocitiesBuffer = root
-  .createBuffer(d.arrayOf(d.vec3f, INITIAL_BODIES.length))
-  .$usage("storage", "uniform");
 const currentBodyIndexBuffer = root.createBuffer(d.i32).$usage("storage", "uniform");
-
-const mainComputeBindGroup = root.createBindGroup(computeLayout, {
-  bodies: bodiesBuffer,
-  masses: massesBuffer,
-  offsets: offsetsBuffer,
-  velocities: velocitiesBuffer,
-  currentBodyIndex: currentBodyIndexBuffer,
-  gravityMultiplier: gravityMultiplierBuffer,
-});
 
 const data: {
   mainRenderPipeline: TgpuRenderPipeline<{ color: d.Vec4f; emission: d.Vec4f }>;
@@ -184,22 +152,15 @@ const SPHERE_DIVISIONS = 8;
 export function SetUpBuffersAndData() {
   gravityMultiplierBuffer.write(GRAVITY_MULTIPLIER);
 
-  bodiesBuffer.write(INITIAL_BODIES);
-  massesBuffer.write(INITIAL_BODIES.map((b) => b.mass));
-  offsetsBuffer.write(INITIAL_BODIES.map((b) => b.position));
-  velocitiesBuffer.write(INITIAL_BODIES.map((b) => b.initialVelocity));
-  currentBodyIndexBuffer.write(0);
+  bodiesBuffer.write(bodies);
 
   data.length = 0;
 
-  INITIAL_BODIES.forEach((body, i) => {
+  bodies.forEach((body, i) => {
     const { verticies, normals, trickVerticies, trickNormals, debugNormalVerticies, trickDebugNormalVerticies } = sphere.generateSphere(root, SPHERE_DIVISIONS, i, body.isSphere);
 
     const mainRenderBindGroup = root.createBindGroup(mainLayout, {
       bodies: bodiesBuffer,
-      masses: massesBuffer,
-      offsets: offsetsBuffer,
-      velocities: velocitiesBuffer,
       currentBodyIndex: currentBodyIndexBuffer,
       gravityMultiplier: gravityMultiplierBuffer,
     });
@@ -221,17 +182,18 @@ export function SetUpBuffersAndData() {
         },
       })(({ vid, inVertex, inNormal }) => {
         "use gpu";
+        const body = mainLayout.$.bodies[mainLayout.$.currentBodyIndex];
         const camera = cameraUniform.$;
-        const offset = mainLayout.$.offsets[mainLayout.$.currentBodyIndex];
+        const offset = body.position;
         const vertex = inVertex.xyz;
         const normal = inNormal.xyz;
 
-        const point = vertex.mul(body.radius).add(offset - camera.pos.xyz);
+        const point = vertex.mul(body.radius).add(offset);
         const position = camera.projection.mul(camera.view).mul(d.vec4f(point, 1));
-        const sunPosition = mainLayout.$.offsets[0] - camera.pos.xyz;
+        const sunPosition = mainLayout.$.bodies[0].position;
 
         const height = std.length(vertex);
-        const colors = mainLayout.$.bodies[mainLayout.$.currentBodyIndex].colors;
+        const colors = body.colors;
         let groundColor = d.vec4f(body.colors[0].color);
 
         for (let i = 0; i < colors.length; i++) {
@@ -270,10 +232,11 @@ export function SetUpBuffersAndData() {
         const diffuse = std.max(0, std.dot(normal, surfaceToLightDirection));
 
         const reflectionDirection = std.reflect(surfaceToLightDirection.mul(-1), normal.xyz);
-        const surfaceToViewDirection = std.normalize(point * - 1);
+        const surfaceToViewDirection = std.normalize(cameraPos.sub(point));
         const specular = std.pow(std.max(0, std.dot(reflectionDirection, surfaceToViewDirection)), 150) * 0.5;
 
         const finalColor = groundColor * diffuse + specular;
+        // const finalColor = groundColor;
 
         let emission = d.vec4f(0, 0, 0, 1);
         const treshold = 0.8;
@@ -305,7 +268,7 @@ export function SetUpBuffersAndData() {
         "use gpu";
         const bodyIndex = orbitPrepareRenderLayout.$.currentBodyIndex;
         const camera = cameraUniform.$;
-        const point = orbitPrepareRenderLayout.$.vertecies[bodyIndex * ORBIT_POINTS_CONST.$ + vid] - camera.pos.xyz;
+        const point = orbitPrepareRenderLayout.$.vertecies[bodyIndex * ORBIT_POINTS_CONST.$ + vid];
         const position = camera.projection.mul(camera.view).mul(d.vec4f(point, 1));
         return {
           position,
@@ -334,11 +297,12 @@ export function SetUpBuffersAndData() {
         },
       })(({ vid, inVertex }) => {
         "use gpu";
+        const body = mainLayout.$.bodies[mainLayout.$.currentBodyIndex];
         const camera = cameraUniform.$;
-        const offset = mainLayout.$.offsets[mainLayout.$.currentBodyIndex];
+        const offset = body.position;
         const vertex = inVertex.xyz;
 
-        const point = vertex.mul(body.radius).add(offset - camera.pos.xyz);
+        const point = vertex.mul(body.radius).add(offset);
         const position = camera.projection.mul(camera.view).mul(d.vec4f(point, 1));
 
         return {
@@ -368,84 +332,9 @@ export function SetUpBuffersAndData() {
 
 SetUpBuffersAndData();
 
-const bodiesVelocityPipeline = root.createGuardedComputePipeline((i) => {
-  "use gpu";
-  const currentPosition = computeLayout.$.offsets[i];
-
-  let newVelocity = d.vec3f(0, 0, 0);
-
-  for (let x = 0; x < computeLayout.$.bodies.length; x++) {
-    if (x === i) continue;
-
-    const otherPosition = computeLayout.$.offsets[x];
-    const otherMass = computeLayout.$.masses[x];
-    const distance = std.distance(currentPosition, otherPosition);
-    const gravityForce = computeLayout.$.gravityMultiplier * (otherMass / (distance * distance));
-    const direction = std.normalize(otherPosition.sub(currentPosition));
-    newVelocity = newVelocity.add(direction.mul(gravityForce));
-  }
-  computeLayout.$.velocities[i] = computeLayout.$.velocities[i].add(newVelocity);
-});
-
-const bodiesOffsetPipeline = root.createGuardedComputePipeline((i) => {
-  "use gpu";
-  computeLayout.$.offsets[i] = computeLayout.$.offsets[i].add(computeLayout.$.velocities[i]);
-});
-
-const orbitComputeVelocityPipeline = root.createGuardedComputePipeline((i) => {
-  "use gpu";
-  const stepIndex = orbitComputeLayout.$.orbitPointIndex;
-
-  if (stepIndex === 0) {
-    orbitComputeLayout.$.velocities[i] = d.vec3f(orbitComputeLayout.$.initialVelocities[i]);
-    return;
-  }
-
-  let newVelocity = d.vec3f(0, 0, 0);
-
-  const currentPosition = orbitComputeLayout.$.offsets[i];
-
-  for (let x = 0; x < INITIAL_BODIES.length; x++) {
-    if (x === i) continue;
-
-    const otherPosition = orbitComputeLayout.$.offsets[x];
-    const otherMass = orbitComputeLayout.$.masses[x];
-    const distance = std.distance(currentPosition, otherPosition);
-    const gravityForce =
-      orbitComputeLayout.$.gravityMultiplier * (otherMass / (distance * distance));
-    const direction = std.normalize(otherPosition.sub(currentPosition));
-    newVelocity = newVelocity.add(direction.mul(gravityForce));
-  }
-  orbitComputeLayout.$.velocities[i] = orbitComputeLayout.$.velocities[i].add(newVelocity);
-});
-
-const orbitComputeOffsetPipeline = root.createGuardedComputePipeline((i) => {
-  "use gpu";
-  const stepIndex = orbitComputeLayout.$.orbitPointIndex;
-  const vertexIndex = i * ORBIT_POINTS_CONST.$ + stepIndex;
-
-  if (stepIndex === 0) {
-    orbitComputeLayout.$.offsets[i] = d.vec3f(orbitComputeLayout.$.initialOffsets[i]);
-    orbitComputeLayout.$.vertecies[vertexIndex] = d.vec3f(orbitComputeLayout.$.initialOffsets[i]);
-    return;
-  }
-
-  orbitComputeLayout.$.offsets[i] = orbitComputeLayout.$.offsets[i].add(
-    orbitComputeLayout.$.velocities[i],
-  );
-  orbitComputeLayout.$.vertecies[vertexIndex] = d.vec3f(orbitComputeLayout.$.offsets[i]);
-});
-
 const orbitVerticiesBuffer = root
   .createBuffer(d.arrayOf(d.vec3f, ORBIT_POINTS * INITIAL_BODIES.length))
   .$usage("storage", "uniform");
-const orbitComputeOffsetsBuffer = root
-  .createBuffer(d.arrayOf(d.vec3f, INITIAL_BODIES.length))
-  .$usage("storage", "uniform");
-const orbitComputeVelocitiesBuffer = root
-  .createBuffer(d.arrayOf(d.vec3f, INITIAL_BODIES.length))
-  .$usage("storage", "uniform");
-const orbitPointIndexBuffer = root.createBuffer(d.i32).$usage("storage", "uniform");
 
 const orbitRenderTexture = root
   .createTexture({
@@ -464,22 +353,15 @@ const orbitFinalRenderBindGroup = root.createBindGroup(orbitFinalRenderLayout, {
   sampler: mainSampler
 });
 
-const orbitComputeBindGroup = root.createBindGroup(orbitComputeLayout, {
-  orbitPointIndex: orbitPointIndexBuffer,
-  offsets: orbitComputeOffsetsBuffer,
-  velocities: orbitComputeVelocitiesBuffer,
-  vertecies: orbitVerticiesBuffer,
-  initialVelocities: velocitiesBuffer,
-  initialOffsets: offsetsBuffer,
-  masses: massesBuffer,
-  gravityMultiplier: gravityMultiplierBuffer,
-});
-
 function predictOrbits() {
+  let currentBodies = bodies.map((b) => (CelestianBody(b)));
   for (let i = 0; i < ORBIT_POINTS; i++) {
-    orbitPointIndexBuffer.patch(i);
-    orbitComputeVelocityPipeline.with(orbitComputeBindGroup).dispatchThreads(INITIAL_BODIES.length);
-    orbitComputeOffsetPipeline.with(orbitComputeBindGroup).dispatchThreads(INITIAL_BODIES.length);
+    currentBodies = simulateGravity(currentBodies);
+
+    currentBodies.forEach((body, index) => {
+      const vertexIndex = index * ORBIT_POINTS + i;
+      orbitVerticiesBuffer.patch({ [vertexIndex]: body.position });
+    });
   }
 }
 
@@ -702,32 +584,54 @@ const finalBloomRenderPipeline = root.createRenderPipeline({
   }
 });
 
-const computeCameraPositionPipeline = root.createGuardedComputePipeline(() => {
-  "use gpu";
-  const attachedObjectIndex = attachedObjectIndexUniform.$;
+const mult = 1;
+function simulateGravity(lastBodies: d.Infer<typeof CelestianBody>[]) {
+  const finalBodies = lastBodies.map((b) => (CelestianBody(b)));
 
-  if (attachedObjectIndex === -1) {
-    return;
-  }
+  finalBodies.forEach((body, i) => {
+    let newVelocity = d.vec3f(0, 0, 0);
+    finalBodies.forEach((otherBody, x) => {
+      if (x === i) return;
+      const otherPosition = otherBody.position;
+      const otherMass = otherBody.mass;
+      const distance = std.distance(body.position, otherPosition);
+      const gravityForce = GRAVITY_MULTIPLIER * (otherMass / (distance * distance));
+      const direction = std.normalize(otherPosition.sub(body.position));
+      newVelocity = newVelocity.add(direction.mul(gravityForce));
+    });
+    body.velocity = body.velocity.add(newVelocity.mul(mult));
+  });
 
-  const currentCameraPosition = cameraMutable.$.pos.xyz;
-  const attachedObjectPosition = computeLayout.$.offsets[attachedObjectIndex];
+  finalBodies.forEach((body, i) => {
+    body.position = body.position.add(body.velocity.mul(mult));
+  });
 
-  cameraMutable.$.pos = d.vec4f(currentCameraPosition + attachedObjectPosition, 1);
-});
+  return finalBodies;
+}
+
+function alignCameraToAttachedObject() {
+  if (attachedBodyIndex === -1) return;
+
+  const attachedBody = bodies[attachedBodyIndex];
+  const cameraPosition = cameraState.pos;
+
+  const newCameraPos = cameraPosition.add(attachedBody.velocity)
+  setPosition(newCameraPos);
+}
 
 function render() {
   updatePosition();
 
-  bodiesVelocityPipeline.with(mainComputeBindGroup).dispatchThreads(INITIAL_BODIES.length);
-  bodiesOffsetPipeline.with(mainComputeBindGroup).dispatchThreads(INITIAL_BODIES.length);
-  computeCameraPositionPipeline.with(mainComputeBindGroup).dispatchThreads();
+  bodies = simulateGravity(bodies);
+  bodiesBuffer.write(bodies);
+
+  alignCameraToAttachedObject();
 
   if (frame % (ORBIT_POINTS / 2) === 0) {
     predictOrbits();
   }
 
-  data.forEach(async (item, i) => {
+  data.forEach((item, i) => {
     currentBodyIndexBuffer.write(i);
 
     item.mainRenderPipeline

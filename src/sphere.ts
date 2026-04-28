@@ -15,7 +15,7 @@ export function SetEpsilon(newEpsilon: number) {
   epsilon = newEpsilon;
 }
 
-const cubeDirections = tgpu.const(d.arrayOf(d.vec3f, 6), [
+export const cubeDirections = tgpu.const(d.arrayOf(d.vec3f, 6), [
   d.vec3f(1, 0, 0),
   d.vec3f(-1, 0, 0),
   d.vec3f(0, 1, 0),

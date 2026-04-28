@@ -11,6 +11,7 @@
     "fix": "oxlint --fix && oxfmt"
   },
   "dependencies": {
+    "@typegpu/noise": "^0.11.0",
     "typegpu": "^0.11.2",
     "wgpu-matrix": "^3.4.2"
   },

@@ -113,22 +113,23 @@ export function SetUpControls() {
       INITIAL_BODIES[i].position.z = parseFloat(positionZInput.value);
     });
 
-    velocityXInput.addEventListener("change", () => {
-      INITIAL_BODIES[i].initialVelocity.x = parseFloat(velocityXInput.value);
+    //   velocityXInput.addEventListener("change", () => {
+    //     INITIAL_BODIES[i].initialVelocity.x = parseFloat(velocityXInput.value);
+    //   });
+
+    //   velocityYInput.addEventListener("change", () => {
+    //     INITIAL_BODIES[i].initialVelocity.y = parseFloat(velocityYInput.value);
+    //   });
+
+    //   velocityZInput.addEventListener("change", () => {
+    //     INITIAL_BODIES[i].initialVelocity.z = parseFloat(velocityZInput.value);
+    //   });
+    // });
+
+    document.querySelectorAll("input.reload").forEach((input) => {
+      input.addEventListener("change", SetUpBuffersAndData);
     });
 
-    velocityYInput.addEventListener("change", () => {
-      INITIAL_BODIES[i].initialVelocity.y = parseFloat(velocityYInput.value);
-    });
-
-    velocityZInput.addEventListener("change", () => {
-      INITIAL_BODIES[i].initialVelocity.z = parseFloat(velocityZInput.value);
-    });
-  });
-
-  document.querySelectorAll("input.reload").forEach((input) => {
-    input.addEventListener("change", SetUpBuffersAndData);
-  });
-
-  controlsReady = true;
+    controlsReady = true;
+  })
 }

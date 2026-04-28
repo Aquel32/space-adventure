@@ -49,9 +49,9 @@ export function setupFirstPersonCamera(
     const position = cameraState.pos;
     const pitch = cameraState.pitch;
     const yaw = cameraState.yaw;
-    const target = d.vec3f(std.cos(pitch) * std.sin(yaw), std.sin(pitch), std.cos(pitch) * std.cos(yaw));
+    const target = position.add(d.vec3f(std.cos(pitch) * std.sin(yaw), std.sin(pitch), std.cos(pitch) * std.cos(yaw)));
 
-    const view = calculateView(d.vec3f(0, 0, 0), target);
+    const view = calculateView(position, target);
     const projection = calculateProj(canvas.clientWidth / canvas.clientHeight);
 
     callback(
@@ -159,15 +159,15 @@ export function setupFirstPersonCamera(
   };
 
   runCallback();
-  return { cleanupCamera, updatePosition, setPosition };
+  return { cameraState, cleanupCamera, updatePosition, setPosition };
 }
 
-function calculateView(position: d.v3f, target: d.v3f) {
+export function calculateView(position: d.v3f, target: d.v3f) {
   return m.mat4.lookAt(position, target, d.vec3f(0, 1, 0), d.mat4x4f());
 }
 
-function calculateProj(aspectRatio: number) {
-  return m.mat4.perspective(Math.PI / 4, aspectRatio, 0.1, 1000, d.mat4x4f());
+export function calculateProj(aspectRatio: number, fov: number = Math.PI / 4, near: number = 0.1, far: number = 1000) {
+  return m.mat4.perspective(fov, aspectRatio, near, far, d.mat4x4f());
 }
 
 function invertMat(matrix: d.m4x4f) {

@@ -1,10 +1,6 @@
-import { d, std } from "typegpu";
+import tgpu, { d, std } from "typegpu";
 import type { v3f } from "typegpu/data";
-
-export let GRAVITY_MULTIPLIER = 0.04;
-export function SetGravityMultiplier(newG: number) {
-  GRAVITY_MULTIPLIER = newG;
-}
+import { GRAVITY_MULTIPLIER } from "./settings";
 
 function calculateStableOrbitVelocity(distance: number, mass: number) {
   return std.sqrt((GRAVITY_MULTIPLIER * mass) / distance);
@@ -246,3 +242,4 @@ export const INITIAL_BODIES = d.arrayOf(
 
   }, // Neptune
 ]);
+export const BODY_COUNT_CONST = tgpu.const(d.i32, INITIAL_BODIES.length);

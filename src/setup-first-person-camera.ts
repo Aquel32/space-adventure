@@ -159,7 +159,7 @@ export function setupFirstPersonCamera(
   };
 
   runCallback();
-  return { cameraState, cleanupCamera, updatePosition, setPosition };
+  return { state: cameraState, cleanupCamera, updatePosition, setPosition };
 }
 
 export function calculateView(position: d.v3f, target: d.v3f) {

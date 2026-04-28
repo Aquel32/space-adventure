@@ -1,25 +1,22 @@
-import { DEBUG_NORMALS, GAUSIAN_ITERATIONS, PIXEL_SCALE_BUFFER, RENDER_ORBITS, SetBlurIterations, SetDebugNormals, SetRenderOrbits, SetUpBuffersAndData, UpdateAttachedBody } from "./main";
-import { GRAVITY_MULTIPLIER, INITIAL_BODIES, SetGravityMultiplier } from "./simulation-data";
+import { DEBUG_NORMALS, GAUSIAN_ITERATIONS, GRAVITY_MULTIPLIER, PIXEL_SCALE, RENDER_ORBITS, SetAttachedBody, SetDebugNormals, SetGausianIterations, SetGravityMultiplier, SetPixelScale, SetRenderOrbits } from "./data/settings";
+import { INITIAL_BODIES } from "./data/simulation-data";
+import { SetUpBodiesRenderData } from "./main";
 import { SetEpsilon, SetStrength } from "./sphere";
 
-let controlsReady = false;
-
-export function SetUpControls() {
-  if (controlsReady) return;
-
+export function GenerateControls() {
   document.querySelector("main")!.innerHTML += `<section id="controls">
         <div class="main-controls">
-          <!--<label>G: <input type="number" class="g" value="${GRAVITY_MULTIPLIER}" /></label>-->
-          <label>Gaussian Iterations: <input type="number" class="bi" value="${GAUSIAN_ITERATIONS}" /></label>
-          <label>Pixel Scale: <input type="number" class="ps" value="${1}" /></label>
-          <label>Attached Body: <input type="number" class="ab" value="${3}" /></label>
-          <label>Render Orbits: <input type="checkbox" class="ro" ${RENDER_ORBITS ? "checked" : ""} /></label>
-          <label>Strength: <input type="number" class="str reload" value="${0.1}" /></label>
-          <label>Epsilon: <input type="number" class="eps reload" value="${0.001}" /></label>
-           <label>Debug Normals: <input type="checkbox" class="dn" ${DEBUG_NORMALS ? "checked" : ""} /></label>
+          <!--<label>Gravity Multiplier: <input name="gravity" type="number" class="g" value="${GRAVITY_MULTIPLIER}" /></label>-->
+          <label>Gaussian Iterations: <input name="gaussian-iterations" type="number" class="bi" value="${GAUSIAN_ITERATIONS}" /></label>
+          <label>Pixel Scale: <input name="pixel-scale" type="number" class="ps" value="${PIXEL_SCALE}" /></label>
+          <label>Attached Body: <input name="attached-body" type="number" class="ab" value="${3}" /></label>
+          <label>Render Orbits: <input name="render-orbits" type="checkbox" class="ro" ${RENDER_ORBITS ? "checked" : ""} /></label>
+          <label>Strength: <input name="strength" type="number" class="str reload" value="${0.1}" /></label>
+          <label>Epsilon: <input name="epsilon" type="number" class="eps reload" value="${0.001}" /></label>
+           <label>Debug Normals: <input name="debug-normals" type="checkbox" class="dn" ${DEBUG_NORMALS ? "checked" : ""} /></label>
           </div>
         <div class="body-controls">
-        
+
         </div>
     <section>`;
 
@@ -42,30 +39,32 @@ export function SetUpControls() {
   //           </div>
   //       `,
   // ).join("");
+}
 
+export function SetUpControls() {
   // document.querySelector(".g")!.addEventListener("change", (e) => {
-  //   const newG = parseFloat((e.target as HTMLInputElement).value);
-  //   SetGravityMultiplier(newG);
+  //   const newGravityMultiplier = parseFloat((e.target as HTMLInputElement).value);
+  //   SetGravityMultiplier(newGravityMultiplier);
   // });
 
   document.querySelector(".bi")!.addEventListener("change", (e) => {
-    const newbi = parseFloat((e.target as HTMLInputElement).value);
-    SetBlurIterations(newbi);
+    const newGausianIterations = parseFloat((e.target as HTMLInputElement).value);
+    SetGausianIterations(newGausianIterations);
   });
 
   document.querySelector(".ps")!.addEventListener("change", (e) => {
-    const newG = parseFloat((e.target as HTMLInputElement).value);
-    PIXEL_SCALE_BUFFER.write(newG);
+    const newPixelScale = parseFloat((e.target as HTMLInputElement).value);
+    SetPixelScale(newPixelScale);
   });
 
   document.querySelector(".ab")!.addEventListener("change", (e) => {
-    const newAb = parseFloat((e.target as HTMLInputElement).value);
-    UpdateAttachedBody(newAb);
+    const newAttachedBodyIndex = parseFloat((e.target as HTMLInputElement).value);
+    SetAttachedBody(newAttachedBodyIndex);
   });
 
   document.querySelector(".ro")!.addEventListener("change", (e) => {
-    const newRo = (e.target as HTMLInputElement).checked;
-    SetRenderOrbits(newRo);
+    const newRenderOrbits = (e.target as HTMLInputElement).checked;
+    SetRenderOrbits(newRenderOrbits);
   });
 
   document.querySelector(".str")!.addEventListener("change", (e) => {
@@ -79,8 +78,8 @@ export function SetUpControls() {
   });
 
   document.querySelector(".dn")!.addEventListener("change", (e) => {
-    const newDn = (e.target as HTMLInputElement).checked;
-    SetDebugNormals(newDn);
+    const newDebugNormals = (e.target as HTMLInputElement).checked;
+    SetDebugNormals(newDebugNormals);
   });
 
   document.querySelectorAll(".body").forEach((control, i) => {
@@ -113,23 +112,20 @@ export function SetUpControls() {
       INITIAL_BODIES[i].position.z = parseFloat(positionZInput.value);
     });
 
-    //   velocityXInput.addEventListener("change", () => {
-    //     INITIAL_BODIES[i].initialVelocity.x = parseFloat(velocityXInput.value);
-    //   });
-
-    //   velocityYInput.addEventListener("change", () => {
-    //     INITIAL_BODIES[i].initialVelocity.y = parseFloat(velocityYInput.value);
-    //   });
-
-    //   velocityZInput.addEventListener("change", () => {
-    //     INITIAL_BODIES[i].initialVelocity.z = parseFloat(velocityZInput.value);
-    //   });
-    // });
-
-    document.querySelectorAll("input.reload").forEach((input) => {
-      input.addEventListener("change", SetUpBuffersAndData);
+    velocityXInput.addEventListener("change", () => {
+      INITIAL_BODIES[i].velocity.x = parseFloat(velocityXInput.value);
     });
 
-    controlsReady = true;
-  })
+    velocityYInput.addEventListener("change", () => {
+      INITIAL_BODIES[i].velocity.y = parseFloat(velocityYInput.value);
+    });
+
+    velocityZInput.addEventListener("change", () => {
+      INITIAL_BODIES[i].velocity.z = parseFloat(velocityZInput.value);
+    });
+  });
+
+  document.querySelectorAll("input.reload").forEach((input) => {
+    input.addEventListener("change", SetUpBodiesRenderData);
+  });
 }

@@ -1,8 +1,9 @@
 import tgpu, { d, std, type TgpuRoot } from "typegpu";
 import type { v3f } from "typegpu/data";
 import { select } from "typegpu/std";
-import { CelestianBody } from "./simulation-data";
+import { CelestianBody } from "./data/simulation-data";
 import { perlin2d, perlin3d, randf } from '@typegpu/noise'
+import { SPHERE_DIVISIONS } from "./data/settings";
 
 let strength = 0.3;
 let epsilon = 0.2;
@@ -24,8 +25,8 @@ export const cubeDirections = tgpu.const(d.arrayOf(d.vec3f, 6), [
   d.vec3f(0, 0, -1),
 ]);
 
-export function getVertexAmount(divisions: number) {
-  return cubeDirections.$.length * (4 ** divisions) * 6;
+export function getVertexAmount() {
+  return cubeDirections.$.length * (4 ** SPHERE_DIVISIONS) * 6;
 }
 
 function perlinForPoint(point: v3f, strength: number) {
@@ -88,13 +89,13 @@ const sphereComputeLayout = tgpu.bindGroupLayout({
   debugNormal: { storage: d.arrayOf(d.u32), access: "mutable" },
 });
 
-export function generateSphere(root: TgpuRoot, divisions: number, perlinOffset: number, isSphere: number) {
-  const verticies = root.createBuffer(d.arrayOf(d.u32, getVertexAmount(divisions) * 2)).$usage("vertex", "storage");
-  const normals = root.createBuffer(d.arrayOf(d.u32, getVertexAmount(divisions) * 2)).$usage("vertex", "storage");
-  const trickVerticies = root.createBuffer(d.disarrayOf(d.float16x4, getVertexAmount(divisions) * 2), verticies.buffer).$usage("vertex");
-  const trickNormals = root.createBuffer(d.disarrayOf(d.float16x4, getVertexAmount(divisions) * 2), normals.buffer).$usage("vertex");
-  const debugNormalVerticies = root.createBuffer(d.arrayOf(d.u32, getVertexAmount(divisions) * 4)).$usage("vertex", "storage");
-  const trickDebugNormalVerticies = root.createBuffer(d.disarrayOf(d.float16x4, getVertexAmount(divisions) * 4), debugNormalVerticies.buffer).$usage("vertex");
+export function generateSphere(root: TgpuRoot, perlinOffset: number, isSphere: number) {
+  const verticies = root.createBuffer(d.arrayOf(d.u32, getVertexAmount() * 2)).$usage("vertex", "storage");
+  const normals = root.createBuffer(d.arrayOf(d.u32, getVertexAmount() * 2)).$usage("vertex", "storage");
+  const trickVerticies = root.createBuffer(d.disarrayOf(d.float16x4, getVertexAmount() * 2), verticies.buffer).$usage("vertex");
+  const trickNormals = root.createBuffer(d.disarrayOf(d.float16x4, getVertexAmount() * 2), normals.buffer).$usage("vertex");
+  const debugNormalVerticies = root.createBuffer(d.arrayOf(d.u32, getVertexAmount() * 4)).$usage("vertex", "storage");
+  const trickDebugNormalVerticies = root.createBuffer(d.disarrayOf(d.float16x4, getVertexAmount() * 4), debugNormalVerticies.buffer).$usage("vertex");
 
   const currentDirection = root.createBuffer(d.u32).$usage("uniform");
   const divisionsBuffer = root.createBuffer(d.u32).$usage("uniform");
@@ -103,7 +104,7 @@ export function generateSphere(root: TgpuRoot, divisions: number, perlinOffset: 
   const perlinOffsetBuffer = root.createBuffer(d.f32).$usage("uniform");
   const isSphereBuffer = root.createBuffer(d.u32).$usage("uniform");
 
-  divisionsBuffer.write(divisions);
+  divisionsBuffer.write(SPHERE_DIVISIONS);
   strengthBuffer.write(strength);
   epsilonBuffer.write(epsilon);
   perlinOffsetBuffer.write(perlinOffset);
@@ -158,7 +159,7 @@ export function generateSphere(root: TgpuRoot, divisions: number, perlinOffset: 
 
     createSphereComputePipeline.
       with(sphereComputeBindGroup).
-      dispatchThreads(2 ** divisions, 2 ** divisions);
+      dispatchThreads(2 ** SPHERE_DIVISIONS, 2 ** SPHERE_DIVISIONS);
   });
 
   return { verticies, normals, trickVerticies, trickNormals, debugNormalVerticies, trickDebugNormalVerticies };

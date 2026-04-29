@@ -281,8 +281,6 @@ function moveCameraWithAttachedObjectVelocity() {
 const simulation = PrepareSimulation(root, canvas, context, cameraUniform);
 const bloomEffect = PrepareBloom(root, canvas, context, pixelScaleUniform);
 
-simulation.predictOrbits(bodies);
-
 function render() {
   camera.updatePosition();
 
@@ -294,7 +292,7 @@ function render() {
   moveCameraWithAttachedObjectVelocity();
 
   if (frame % (ORBIT_PREDICTION_STEPS / 2) === 0) {
-    simulation.predictOrbits(bodies);
+    simulation.predictOrbits(positionsArray, velocitiesArray, bodies);
   }
 
   bodiesRenderData.forEach((item, i) => {

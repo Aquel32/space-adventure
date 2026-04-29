@@ -22,15 +22,14 @@ export function bodiesToArrays(bodies: d.Infer<typeof CelestianBody>[]) {
 export function PrepareSimulation(root: TgpuRoot, canvas: HTMLCanvasElement, context: GPUCanvasContext, cameraUniform: TgpuUniform<typeof Camera>) {
     const orbitRenderLayout = tgpu.bindGroupLayout({
         currentBodyIndex: { storage: d.i32, access: "readonly" },
-        vertecies: { storage: d.arrayOf(d.u32), access: "readonly" },
+        vertecies: { storage: d.arrayOf(d.vec4f), access: "readonly" },
     });
 
     const currentBodyIndexBuffer = root.createBuffer(d.i32).$usage("storage", "uniform");
     const orbitVerticiesBuffer = root
-        .createBuffer(d.arrayOf(d.u32, ORBIT_PREDICTION_STEPS_CONST.$ * BODY_COUNT_CONST.$ * 2))
+        .createBuffer(d.arrayOf(d.vec4f, ORBIT_PREDICTION_STEPS_CONST.$ * BODY_COUNT_CONST.$))
         .$usage("storage");
-    const currentOrbitVerticiesBuffer = root.createBuffer(d.arrayOf(d.vec4h, ORBIT_PREDICTION_STEPS_CONST.$ * BODY_COUNT_CONST.$), orbitVerticiesBuffer.buffer);
-    const verteciesArray = new Float16Array(ORBIT_PREDICTION_STEPS_CONST.$ * BODY_COUNT_CONST.$ * 4); // CPU BUFFER
+    const verteciesArray = new Float32Array(ORBIT_PREDICTION_STEPS_CONST.$ * BODY_COUNT_CONST.$ * 4); // CPU BUFFER
 
     const orbitPrepareRenderBindGroup = root.createBindGroup(orbitRenderLayout, {
         currentBodyIndex: currentBodyIndexBuffer,
@@ -45,10 +44,8 @@ export function PrepareSimulation(root: TgpuRoot, canvas: HTMLCanvasElement, con
             "use gpu";
             const bodyIndex = orbitRenderLayout.$.currentBodyIndex;
             const camera = cameraUniform.$;
-            const index = (bodyIndex * ORBIT_PREDICTION_STEPS_CONST.$ + vid) * 2;
-            const xy = std.unpack2x16float(orbitRenderLayout.$.vertecies[index]);
-            const zw = std.unpack2x16float(orbitRenderLayout.$.vertecies[index + 1]);
-            const point = d.vec4f(xy, zw);
+            const index = (bodyIndex * ORBIT_PREDICTION_STEPS_CONST.$ + vid);
+            const point = orbitRenderLayout.$.vertecies[index];
 
             const position = camera.projection.mul(camera.view).mul(point);
 
@@ -119,17 +116,14 @@ export function PrepareSimulation(root: TgpuRoot, canvas: HTMLCanvasElement, con
         }
     }
 
-    //positions and velocities => float 32 arrays (3 indexes per body)
-    //renderLayout.vertecies => u.32 array (2 indexes per body, xy | zw)
-
-    function predictOrbits(bodies: d.Infer<typeof CelestianBody>[]) {
-        const { positions, velocities } = bodiesToArrays(bodies);
+    function predictOrbits(initialPositions: Float32Array<ArrayBuffer>, initialVelocities: Float32Array<ArrayBuffer>, bodies: d.Infer<typeof CelestianBody>[]) {
+        const positions = new Float32Array(initialPositions);
+        const velocities = new Float32Array(initialVelocities);
 
         for (let i = 0; i < ORBIT_PREDICTION_STEPS; i++) {
             simulateGravity(positions, velocities, bodies);
-
             for (let bodyIndex = 0; bodyIndex < BODY_COUNT_CONST.$; bodyIndex++) {
-                const vertexIndex = (bodyIndex * ORBIT_PREDICTION_STEPS + i) * 4;
+                const vertexIndex = ((bodyIndex * ORBIT_PREDICTION_STEPS) + i) * 4;
 
                 verteciesArray[vertexIndex] = positions[bodyIndex * 3];
                 verteciesArray[vertexIndex + 1] = positions[bodyIndex * 3 + 1];
@@ -138,7 +132,7 @@ export function PrepareSimulation(root: TgpuRoot, canvas: HTMLCanvasElement, con
             }
         }
 
-        currentOrbitVerticiesBuffer.write(verteciesArray);
+        orbitVerticiesBuffer.write(verteciesArray);
     }
 
     function renderOrbits(bodies: d.Infer<typeof CelestianBody>[]) {

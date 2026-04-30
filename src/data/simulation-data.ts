@@ -133,7 +133,8 @@ export const INITIAL_BODIES = d.arrayOf(
 
   {
     position: d.vec3f(38.7, 0, 0),
-    radius: MERCURY_RENDER_RADIUS,
+    // radius: MERCURY_RENDER_RADIUS,
+    radius: 2,
     colors: [
       { color: d.vec4f(0.24, 0.23, 0.22, 1), height: 0.90 },
       { color: d.vec4f(0.56, 0.53, 0.5, 1), height: 0.988 },
@@ -145,7 +146,8 @@ export const INITIAL_BODIES = d.arrayOf(
   }, // Mercury
   {
     position: d.vec3f(72.3, 0, 0),
-    radius: VENUS_RENDER_RADIUS,
+    // radius: VENUS_RENDER_RADIUS,
+    radius: 6,
     colors: [
       { color: d.vec4f(0.45, 0.3, 0.16, 1), height: 0.90 },
       { color: d.vec4f(0.82, 0.65, 0.39, 1), height: 0.988 },
@@ -157,7 +159,8 @@ export const INITIAL_BODIES = d.arrayOf(
   }, // Venus
   {
     position: d.vec3f(EARTH_DISTANCE, 0, 0),
-    radius: EARTH_BODY_RENDER_RADIUS,
+    // radius: EARTH_BODY_RENDER_RADIUS,
+    radius: 5,
     colors: [
       { color: d.vec4f(0.18, 0.42, 0.72, 1), height: 0.90 },
       { color: d.vec4f(0.06, 0.2, 0.08, 1), height: 1 },
@@ -169,7 +172,8 @@ export const INITIAL_BODIES = d.arrayOf(
   }, // Earth
   {
     position: d.vec3f(EARTH_DISTANCE, MOON_ORBIT_RADIUS, 0),
-    radius: MOON_RENDER_RADIUS,
+    // radius: MOON_RENDER_RADIUS,
+    radius: 1,
     colors: [
       { color: d.vec4f(0.2, 0.2, 0.18, 1), height: 0.90 },
       { color: d.vec4f(0.24, 0.24, 0.22, 1), height: 0.988 },
@@ -181,7 +185,8 @@ export const INITIAL_BODIES = d.arrayOf(
   }, // Moon
   {
     position: d.vec3f(152.4, 0, 0),
-    radius: MARS_RENDER_RADIUS,
+    // radius: MARS_RENDER_RADIUS,
+    radius: 20,
     colors: [
       { color: d.vec4f(0.3, 0.12, 0.08, 1), height: 0.90 },
       { color: d.vec4f(0.66, 0.31, 0.22, 1), height: 0.988 },
@@ -193,7 +198,8 @@ export const INITIAL_BODIES = d.arrayOf(
   }, // Mars
   {
     position: d.vec3f(520.3, 0, 0),
-    radius: JUPITER_RENDER_RADIUS,
+    // radius: JUPITER_RENDER_RADIUS,
+    radius: 60,
     colors: [
       { color: d.vec4f(0.43, 0.29, 0.2, 1), height: 0.90 },
       { color: d.vec4f(0.75, 0.57, 0.43, 1), height: 0.988 },

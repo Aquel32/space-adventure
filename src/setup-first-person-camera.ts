@@ -162,8 +162,8 @@ export function setupFirstPersonCamera(
   return { state: cameraState, cleanupCamera, updatePosition, setPosition };
 }
 
-export function calculateView(position: d.v3f, target: d.v3f) {
-  return m.mat4.lookAt(position, target, d.vec3f(0, 1, 0), d.mat4x4f());
+export function calculateView(position: d.v3f, target: d.v3f, up: d.v3f = d.vec3f(0, 1, 0)) {
+  return m.mat4.lookAt(position, target, up, d.mat4x4f());
 }
 
 export function calculateProj(aspectRatio: number, fov: number = Math.PI / 4, near: number = 0.1, far: number = 1000) {

@@ -1,6 +1,6 @@
-import { DEBUG_NORMALS, GAUSIAN_ITERATIONS, GRAVITY_MULTIPLIER, PIXEL_SCALE, RENDER_ORBITS, SetAttachedBody, SetDebugNormals, SetGausianIterations, SetGravityMultiplier, SetPixelScale, SetRenderOrbits, SetSimulationSpeed, SIMULATION_SPEED } from "./data/settings";
+import { DEBUG_NORMALS, DEBUG_SHADOWS, DEPTH_BIAS, GAUSIAN_ITERATIONS, GRAVITY_MULTIPLIER, NORMAL_OFFSET, PIXEL_SCALE, RENDER_ORBITS, SetAttachedBody, SetDebugNormals, SetDebugShadows, SetDepthBias, SetGausianIterations, SetGravityMultiplier, SetNormalOffset, SetPixelScale, SetRenderOrbits, SetShowDepthCube, SetSimulationSpeed, SHOW_DEPTH_CUBE, SIMULATION_SPEED } from "./data/settings";
 import { INITIAL_BODIES } from "./data/simulation-data";
-import { SetUpBodiesRenderData } from "./main";
+import { ReloadSettings, SetUpBodiesRenderData } from "./main";
 import { SetEpsilon, SetStrength } from "./sphere";
 
 export function PrepareUI() {
@@ -8,15 +8,24 @@ export function PrepareUI() {
 
   document.querySelector("main")!.innerHTML += `<section id="controls">
         <div class="main-controls">
+          <p>simulation</p>
           <label>Gravity Multiplier: <input name="gravity" type="number" class="g reload" value="${GRAVITY_MULTIPLIER}" /></label>
-          <label>Simulation Speed: <input name="simulation-speed" type="number" class="ss reload" value="${SIMULATION_SPEED}" /></label>
+          <label>Simulation Speed: <input name="simulation-speed" type="number" class="ss" value="${SIMULATION_SPEED}" /></label>
+          <label>Attached Body: <input name="attached-body" type="number" class="ab" value="${3}" /></label>
+          <p>bloom</p>
           <label>Gaussian Iterations: <input name="gaussian-iterations" type="number" class="bi" value="${GAUSIAN_ITERATIONS}" /></label>
           <label>Pixel Scale: <input name="pixel-scale" type="number" class="ps" value="${PIXEL_SCALE}" /></label>
-          <label>Attached Body: <input name="attached-body" type="number" class="ab" value="${3}" /></label>
+          <p>orbit prediction</p>
           <label>Render Orbits: <input name="render-orbits" type="checkbox" class="ro" ${RENDER_ORBITS ? "checked" : ""} /></label>
-          <label>Strength: <input name="strength" type="number" class="str reload" value="${0.1}" /></label>
+          <p>sphere</p>
+          <label>Perlin Strength: <input name="strength" type="number" class="str reload" value="${0.1}" /></label>
           <label>Epsilon: <input name="epsilon" type="number" class="eps reload" value="${0.001}" /></label>
-           <label>Debug Normals: <input name="debug-normals" type="checkbox" class="dn" ${DEBUG_NORMALS ? "checked" : ""} /></label>
+          <label>Debug Normals: <input name="debug-normals" type="checkbox" class="dn" ${DEBUG_NORMALS ? "checked" : ""} /></label>
+          <p>shadows</p>
+          <label>Debug Shadows: <input name="debug-shadows" type="checkbox" class="ds" ${DEBUG_SHADOWS ? "checked" : ""} /></label>
+          <label>Show Depth Cube: <input name="show-depth-cube" type="checkbox" class="sdc" ${SHOW_DEPTH_CUBE ? "checked" : ""} /></label>
+          <label>Depth Bias: <input name="depth-bias" type="number" class="db" value="${DEPTH_BIAS}" /></label>
+           <label>Normal Offset: <input name="normal-offset" type="number" class="no" value="${NORMAL_OFFSET}" /></label>
           </div>
         <div class="body-controls">
 
@@ -91,6 +100,26 @@ export function PrepareUI() {
       SetDebugNormals(newDebugNormals);
     });
 
+    document.querySelector(".ds")!.addEventListener("change", (e) => {
+      const newDebugShadows = (e.target as HTMLInputElement).checked;
+      SetDebugShadows(newDebugShadows);
+    });
+
+    document.querySelector(".sdc")!.addEventListener("change", (e) => {
+      const newShowDepthCube = (e.target as HTMLInputElement).checked;
+      SetShowDepthCube(newShowDepthCube);
+    });
+
+    document.querySelector(".db")!.addEventListener("change", (e) => {
+      const newDepthBias = parseFloat((e.target as HTMLInputElement).value);
+      SetDepthBias(newDepthBias);
+    });
+
+    document.querySelector(".no")!.addEventListener("change", (e) => {
+      const newNormalOffset = parseFloat((e.target as HTMLInputElement).value);
+      SetNormalOffset(newNormalOffset);
+    });
+
     document.querySelectorAll(".body").forEach((control, i) => {
       const massInput = control.querySelector(".mass") as HTMLInputElement;
       const radiusInput = control.querySelector(".radius") as HTMLInputElement;
@@ -136,6 +165,10 @@ export function PrepareUI() {
 
     document.querySelectorAll("input.reload").forEach((input) => {
       input.addEventListener("change", SetUpBodiesRenderData);
+    });
+
+    document.querySelectorAll("input").forEach((input) => {
+      input.addEventListener("change", ReloadSettings);
     });
 
     controlsSetUp = true;

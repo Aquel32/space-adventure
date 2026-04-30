@@ -124,6 +124,10 @@ canvas {
   padding: 20px;
 }
 
+.main-controls p {
+  color: #f3f4f6;
+}
+
 .body label {
   display: flex;
   gap: 4px;

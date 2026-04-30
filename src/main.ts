@@ -20,11 +20,12 @@ import tgpu, {
 } from "typegpu";
 import * as sphere from "./sphere";
 import { BODY_COUNT_CONST, CelestianBody, INITIAL_BODIES } from "./data/simulation-data";
-import { ATTACHED_BODY_INDEX, DEBUG_NORMALS, ORBIT_PREDICTION_STEPS, RENDER_ORBITS, SetAttachedBody, SIMULATION_SPEED } from "./data/settings";
+import { ATTACHED_BODY_INDEX, DEBUG_NORMALS, DEBUG_SHADOWS, NORMAL_OFFSET, ORBIT_PREDICTION_STEPS, RENDER_ORBITS, SetAttachedBody, SHOW_DEPTH_CUBE, SIMULATION_SPEED } from "./data/settings";
 import { PrepareBloom } from "./postprocessing/bloom";
 import { bodiesToArrays, PrepareSimulation } from "./simulation";
 import { PrepareUI } from "./ui-controls";
 import { writeSoA } from "typegpu/common";
+import { PrepareShadows } from "./shadows";
 
 document.querySelector<HTMLDivElement>("#app")!.innerHTML = `
 <main>
@@ -66,6 +67,14 @@ const mainBindGroupLayout = tgpu.bindGroupLayout({
   velocities: { storage: d.arrayOf(d.f32), access: "readonly" },
 });
 
+const shadowsLayout = tgpu.bindGroupLayout({
+  texture: { texture: d.textureDepthCube() },
+  sampler: { sampler: "comparison" }
+});
+
+const debugShadowsUniform = root.createUniform(d.i32);
+const normalOffsetUniform = root.createUniform(d.f32);
+
 let bodies = INITIAL_BODIES;
 const bodiesUniform = root.createUniform(d.arrayOf(CelestianBody, INITIAL_BODIES.length));
 const bodiesPositionsBuffer = root.createBuffer(d.arrayOf(d.f32, INITIAL_BODIES.length * 3)).$usage("storage");
@@ -96,6 +105,8 @@ export function SetUpBodiesRenderData() {
   velocitiesArray.set(initialVelocitiesArray);
   bodiesPositionsBuffer.write(initialPositionsArray);
   bodiesVelocitiesBuffer.write(initialVelocitiesArray);
+  debugShadowsUniform.write(DEBUG_SHADOWS ? 1 : 0);
+  normalOffsetUniform.write(NORMAL_OFFSET);
 
   bodiesRenderData.length = 0;
   bodies.forEach((body, i) => {
@@ -122,7 +133,6 @@ const mainRenderPipeline = root.createRenderPipeline({
       point: d.vec3f,
       cameraPos: d.interpolate("flat", d.vec3f),
       emits: d.interpolate("flat", d.i32),
-      sunPosition: d.vec3f,
       groundColor: d.vec4f,
       normal: d.vec3f,
       vid: d.interpolate("flat", d.i32),
@@ -142,9 +152,9 @@ const mainRenderPipeline = root.createRenderPipeline({
     const vertex = inVertex.xyz;
     const normal = inNormal.xyz;
 
+
     const point = vertex.mul(body.radius).add(offset);
     const position = camera.projection.mul(camera.view).mul(d.vec4f(point, 1));
-    const sunPosition = bodiesUniform.$[0].position;
 
     const height = std.length(vertex);
     const colors = body.colors;
@@ -167,13 +177,12 @@ const mainRenderPipeline = root.createRenderPipeline({
       normal,
       vid,
       point,
-      sunPosition,
       emits,
       cameraPos: camera.pos.xyz,
       bodyId: currentBodyIndexUniform.$,
     };
   }),
-  fragment: ({ $position, groundColor, normal, vid, sunPosition, point, emits, cameraPos, bodyId }) => {
+  fragment: ({ $position, groundColor, normal, vid, point, emits, cameraPos, bodyId }) => {
     "use gpu";
     if (emits === 1) {
       return {
@@ -182,6 +191,12 @@ const mainRenderPipeline = root.createRenderPipeline({
       };
     }
 
+    const sunPosition = d.vec3f(
+      mainBindGroupLayout.$.positions[0],
+      mainBindGroupLayout.$.positions[1],
+      mainBindGroupLayout.$.positions[2],
+    )
+
     const surfaceToLightDirection = std.normalize(sunPosition.sub(point));
     const diffuse = std.max(0, std.dot(normal, surfaceToLightDirection));
 
@@ -189,8 +204,20 @@ const mainRenderPipeline = root.createRenderPipeline({
     const surfaceToViewDirection = std.normalize(cameraPos.sub(point));
     const specular = std.pow(std.max(0, std.dot(reflectionDirection, surfaceToViewDirection)), 150) * 0.5;
 
-    const finalColor = groundColor * diffuse + specular;
-    // const finalColor = groundColor;
+    const normalOffset = normalOffsetUniform.$;
+
+    const toLight = point.add(normal.mul(normalOffset).mul(std.dot(normal, surfaceToLightDirection))).sub(sunPosition);
+    const dist = std.length(toLight);
+    const normalMove = 1;
+    const lightDir = toLight.add(normal.mul(normalMove / 1000)).div(dist).mul(d.vec3f(-1, 1, 1));
+    const depthRef = (dist - normalOffset) / 1000;
+
+    const inShadow = std.textureSampleCompareLevel(shadowsLayout.$.texture, shadowsLayout.$.sampler, lightDir, depthRef);
+    let finalColor = (groundColor * diffuse + specular) * inShadow;
+
+    if (debugShadowsUniform.$ === 1) {
+      finalColor = d.vec4f(d.vec3f(inShadow), 1);
+    }
 
     let emission = d.vec4f(0, 0, 0, 1);
     const treshold = 0.8;
@@ -279,7 +306,19 @@ function moveCameraWithAttachedObjectVelocity() {
 }
 
 const simulation = PrepareSimulation(root, canvas, context, cameraUniform);
+const shadows = PrepareShadows(root, canvas, context, positionVertexLayout, bodiesRenderData, cameraUniform, bodiesUniform, mainBindGroupLayout, mainBindGroup, positionsArray, 0);
 const bloomEffect = PrepareBloom(root, canvas, context, pixelScaleUniform);
+
+export function ReloadSettings() {
+  debugShadowsUniform.write(DEBUG_SHADOWS ? 1 : 0);
+  normalOffsetUniform.write(NORMAL_OFFSET);
+  shadows.reloadSettings();
+}
+
+const shadowsBindGroup = root.createBindGroup(shadowsLayout, {
+  sampler: shadows.sampler,
+  texture: shadows.shadowMap,
+});
 
 function render() {
   camera.updatePosition();
@@ -316,6 +355,7 @@ function render() {
       .with(mainBindGroup)
       .with(positionVertexLayout, item.trickVerticies)
       .with(normalVertexLayout, item.trickNormals)
+      .with(shadowsBindGroup)
       .draw(sphere.getVertexAmount(), 1);
   });
 
@@ -343,12 +383,18 @@ function render() {
     });
   }
 
+  shadows.renderShadowMaps();
+
+  if (SHOW_DEPTH_CUBE) {
+    shadows.debugRender();
+  }
+
   frame++;
   requestAnimationFrame(render);
 }
 
 ui.SetUpControls();
 SetUpBodiesRenderData();
-SetAttachedBody(3); // attach to earth
+SetAttachedBody(1); // attach to earth
 
 requestAnimationFrame(render);

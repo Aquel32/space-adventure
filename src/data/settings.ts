@@ -7,7 +7,7 @@ export function SetGravityMultiplier(newGravityMultiplier: number) {
     GRAVITY_MULTIPLIER = newGravityMultiplier;
 }
 
-export let SIMULATION_SPEED = 0;
+export let SIMULATION_SPEED = 1;
 export function SetSimulationSpeed(newSimulationSpeed: number) {
     SIMULATION_SPEED = newSimulationSpeed;
 }
@@ -43,7 +43,7 @@ export function SetDebugShadows(newDebugShadows: boolean) {
     DEBUG_SHADOWS = newDebugShadows;
 }
 
-export const ORBIT_PREDICTION_STEPS = 100;
+export const ORBIT_PREDICTION_STEPS = 1000;
 export const ORBIT_PREDICTION_STEPS_CONST = tgpu.const(d.i32, ORBIT_PREDICTION_STEPS);
 
 export let ATTACHED_BODY_INDEX = -1;
@@ -59,7 +59,7 @@ export function SetAttachedBody(newIndex: number) {
     moveCameraToAttachedObject();
 }
 
-export const SPHERE_DIVISIONS = 5;
+export const SPHERE_DIVISIONS = 7;
 
 export let DEPTH_BIAS = 0.1;
 export function SetDepthBias(newDepthBias: number) {

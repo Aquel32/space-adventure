@@ -3,7 +3,6 @@ import * as m from "wgpu-matrix";
 import { calculateProj, calculateView, Camera } from "./setup-first-person-camera";
 import { getVertexAmount } from "./sphere";
 import { fullScreenTriangle } from "typegpu/common";
-import { select } from "typegpu/std";
 import { DEPTH_BIAS } from "./data/settings";
 
 const FACE_CONFIGS = [
@@ -56,7 +55,12 @@ export function PrepareShadows(
             storage: (elementCount: number) => d.WgslArray<d.F32>;
             access: "readonly";
         };
-    }>,
+        rotationMatricies: {
+            storage: (elementCount: number) => d.WgslArray<d.Mat4x4f>;
+            access: "readonly";
+        };
+    }>
+    ,
     mainBindGroup: TgpuBindGroup<{
         positions: {
             storage: (elementCount: number) => d.WgslArray<d.F32>;
@@ -66,7 +70,12 @@ export function PrepareShadows(
             storage: (elementCount: number) => d.WgslArray<d.F32>;
             access: "readonly";
         };
-    }>,
+        rotationMatricies: {
+            storage: (elementCount: number) => d.WgslArray<d.Mat4x4f>;
+            access: "readonly";
+        };
+    }>
+    ,
     positions: Float32Array,
     sourceIndex: number
 
@@ -134,14 +143,17 @@ export function PrepareShadows(
                 mainBindGroupLayout.$.positions[bodyIndex * 3 + 1],
                 mainBindGroupLayout.$.positions[bodyIndex * 3 + 2],
             );
+            const rotationMatrix = mainBindGroupLayout.$.rotationMatricies[bodyIndex];
 
             const vertex = inVertex.xyz;
 
-            const point = vertex.mul(body.radius).add(offset);
-            const position = faceMatrix.mul(d.vec4f(point, 1));
+
+            const rotatedPoint = rotationMatrix.mul(d.vec4f(vertex, 1)).xyz;
+            const finalPoint = rotatedPoint.mul(body.radius).add(offset);
+            const position = faceMatrix.mul(d.vec4f(finalPoint, 1));
 
             return {
-                worldPosition: point,
+                worldPosition: finalPoint,
                 position
             };
         }),

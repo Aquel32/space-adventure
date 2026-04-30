@@ -65,6 +65,7 @@ const normalDebugVertexLayout = tgpu.vertexLayout(d.disarrayOf(d.float16x4));
 const mainBindGroupLayout = tgpu.bindGroupLayout({
   positions: { storage: d.arrayOf(d.f32), access: "readonly" },
   velocities: { storage: d.arrayOf(d.f32), access: "readonly" },
+  rotationMatricies: { storage: d.arrayOf(d.mat4x4f), access: "readonly" },
 });
 
 const shadowsLayout = tgpu.bindGroupLayout({
@@ -79,12 +80,16 @@ let bodies = INITIAL_BODIES;
 const bodiesUniform = root.createUniform(d.arrayOf(CelestianBody, INITIAL_BODIES.length));
 const bodiesPositionsBuffer = root.createBuffer(d.arrayOf(d.f32, INITIAL_BODIES.length * 3)).$usage("storage");
 const bodiesVelocitiesBuffer = root.createBuffer(d.arrayOf(d.f32, INITIAL_BODIES.length * 3)).$usage("storage");
+const bodiesRotationMatriciesBuffer = root.createBuffer(d.arrayOf(d.mat4x4f, INITIAL_BODIES.length)).$usage("storage");
 const positionsArray = new Float32Array(INITIAL_BODIES.length * 3); // CPU BUFFER
 const velocitiesArray = new Float32Array(INITIAL_BODIES.length * 3); // CPU BUFFER
+const currentRotationArray = new Float32Array(INITIAL_BODIES.length); // CPU BUFFER
+const rotationMatricesArray = new Float32Array(INITIAL_BODIES.length * 16); // CPU BUFFER
 
 const mainBindGroup = root.createBindGroup(mainBindGroupLayout, {
   positions: bodiesPositionsBuffer,
   velocities: bodiesVelocitiesBuffer,
+  rotationMatricies: bodiesRotationMatriciesBuffer,
 });
 
 const currentBodyIndexUniform = root.createUniform(d.i32);
@@ -148,13 +153,16 @@ const mainRenderPipeline = root.createRenderPipeline({
       mainBindGroupLayout.$.positions[bodyIndex * 3 + 1],
       mainBindGroupLayout.$.positions[bodyIndex * 3 + 2],
     );
+    const rotationMatrix = mainBindGroupLayout.$.rotationMatricies[bodyIndex];
 
     const vertex = inVertex.xyz;
     const normal = inNormal.xyz;
 
+    const rotatedNormal = rotationMatrix.mul(d.vec4f(normal, 1)).xyz;
 
-    const point = vertex.mul(body.radius).add(offset);
-    const position = camera.projection.mul(camera.view).mul(d.vec4f(point, 1));
+    const rotatedPoint = rotationMatrix.mul(d.vec4f(vertex, 1)).xyz;
+    const finalPoint = rotatedPoint.mul(body.radius).add(offset);
+    const position = camera.projection.mul(camera.view).mul(d.vec4f(finalPoint, 1));
 
     const height = std.length(vertex);
     const colors = body.colors;
@@ -174,9 +182,9 @@ const mainRenderPipeline = root.createRenderPipeline({
     return {
       position: position,
       groundColor,
-      normal,
+      normal: rotatedNormal,
       vid,
-      point,
+      point: finalPoint,
       emits,
       cameraPos: camera.pos.xyz,
       bodyId: currentBodyIndexUniform.$,
@@ -287,7 +295,13 @@ export function moveCameraToAttachedObject() {
   if (ATTACHED_BODY_INDEX === -1) return;
   if (ATTACHED_BODY_INDEX < 0 || ATTACHED_BODY_INDEX >= INITIAL_BODIES.length) return;
 
-  camera.setPosition(bodies[ATTACHED_BODY_INDEX].position.sub(d.vec3f(0, 0, bodies[ATTACHED_BODY_INDEX].radius * 3)));
+  const attachedBodyPosition = d.vec3f(
+    positionsArray[ATTACHED_BODY_INDEX * 3],
+    positionsArray[ATTACHED_BODY_INDEX * 3 + 1],
+    positionsArray[ATTACHED_BODY_INDEX * 3 + 2],
+  );
+
+  camera.setPosition(attachedBodyPosition.sub(d.vec3f(0, 0, bodies[ATTACHED_BODY_INDEX].radius * 3)));
 }
 
 function moveCameraWithAttachedObjectVelocity() {
@@ -305,7 +319,7 @@ function moveCameraWithAttachedObjectVelocity() {
   camera.setPosition(newCameraPos);
 }
 
-const simulation = PrepareSimulation(root, canvas, context, cameraUniform);
+const simulation = PrepareSimulation(root, canvas, context, cameraUniform, bodies, rotationMatricesArray, bodiesRotationMatriciesBuffer, currentRotationArray);
 const shadows = PrepareShadows(root, canvas, context, positionVertexLayout, bodiesRenderData, cameraUniform, bodiesUniform, mainBindGroupLayout, mainBindGroup, positionsArray, 0);
 const bloomEffect = PrepareBloom(root, canvas, context, pixelScaleUniform);
 
@@ -324,6 +338,7 @@ function render() {
   camera.updatePosition();
 
   simulation.simulateGravity(positionsArray, velocitiesArray, bodies);
+  simulation.simulateRotation();
 
   bodiesPositionsBuffer.write(positionsArray);
   bodiesVelocitiesBuffer.write(velocitiesArray);
@@ -395,6 +410,6 @@ function render() {
 
 ui.SetUpControls();
 SetUpBodiesRenderData();
-SetAttachedBody(1); // attach to earth
+SetAttachedBody(3); // attach to earth
 
 requestAnimationFrame(render);

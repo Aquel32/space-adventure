@@ -26,6 +26,7 @@ import { bodiesToArrays, PrepareSimulation } from "./simulation";
 import { PrepareUI } from "./ui-controls";
 import { writeSoA } from "typegpu/common";
 import { PrepareShadows } from "./shadows";
+import { sample } from "./cpuPerlin";
 
 document.querySelector<HTMLDivElement>("#app")!.innerHTML = `
 <main>
@@ -250,13 +251,13 @@ const mainRenderPipeline = root.createRenderPipeline({
 });
 
 const normalDebugPipeline = root.createRenderPipeline({
-  attribs: { inVertex: normalDebugVertexLayout.attrib },
+  attribs: { inNormal: normalDebugVertexLayout.attrib },
   vertex: tgpu.vertexFn({
-    in: { vid: d.builtin.vertexIndex, inVertex: d.vec4f },
+    in: { vid: d.builtin.vertexIndex, inNormal: d.vec4f },
     out: {
       position: d.builtin.position,
     },
-  })(({ vid, inVertex }) => {
+  })(({ vid, inNormal }) => {
     "use gpu";
     const bodyIndex = currentBodyIndexUniform.$;
     const body = bodiesUniform.$[bodyIndex];
@@ -267,9 +268,12 @@ const normalDebugPipeline = root.createRenderPipeline({
       mainBindGroupLayout.$.positions[bodyIndex * 3 + 1],
       mainBindGroupLayout.$.positions[bodyIndex * 3 + 2],
     );
-    const vertex = inVertex.xyz;
+    const rotationMatrix = mainBindGroupLayout.$.rotationMatricies[bodyIndex];
 
-    const point = vertex.mul(body.radius).add(offset);
+    const normal = inNormal.xyz;
+    const rotatedNormal = rotationMatrix.mul(d.vec4f(normal, 1)).xyz;
+
+    const point = rotatedNormal.mul(body.radius).add(offset);
     const position = camera.projection.mul(camera.view).mul(d.vec4f(point, 1));
 
     return {
@@ -333,6 +337,17 @@ const shadowsBindGroup = root.createBindGroup(shadowsLayout, {
   sampler: shadows.sampler,
   texture: shadows.shadowMap,
 });
+
+function checkForCollision() {
+  "use gpu";
+  const pointInWorld = d.vec3f(0, 30, 30);
+  const direction = pointInWorld;
+  const normalizedDirection = std.normalize(direction);
+
+  const perlinValue = sample(normalizedDirection);
+}
+
+checkForCollision();
 
 function render() {
   camera.updatePosition();

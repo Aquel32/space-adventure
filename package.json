@@ -11,8 +11,8 @@
     "fix": "oxlint --fix && oxfmt"
   },
   "dependencies": {
-    "@typegpu/noise": "^0.11.0",
-    "typegpu": "^0.11.2",
+    "@typegpu/noise": "https://pkg.pr.new/software-mansion/TypeGPU/@typegpu/noise@a23dfe9e4b7a2b4a212ecf43c054705f1d10fd8d",
+    "typegpu": "https://pkg.pr.new/software-mansion/TypeGPU/typegpu@a23dfe9e4b7a2b4a212ecf43c054705f1d10fd8d",
     "wgpu-matrix": "^3.4.2"
   },
   "devDependencies": {
@@ -20,7 +20,7 @@
     "oxfmt": "^0.45.0",
     "oxlint": "^1.60.0",
     "typescript": "npm:tsover@6.0.0",
-    "unplugin-typegpu": "^0.11.0",
+    "unplugin-typegpu": "https://pkg.pr.new/software-mansion/TypeGPU/unplugin-typegpu@a23dfe9e4b7a2b4a212ecf43c054705f1d10fd8d",
     "vite": "^8.0.4"
   },
   "overrides": {

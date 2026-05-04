@@ -2,11 +2,11 @@ import tgpu, { d, std, type TgpuRoot } from "typegpu";
 import type { v3f } from "typegpu/data";
 import { select } from "typegpu/std";
 import { CelestianBody } from "./data/simulation-data";
-import { perlin2d, perlin3d, randf } from '@typegpu/noise'
+import { perlin2d, perlin3d, randf, randomGeneratorSlot, XOROSHIRO64STARSTAR } from '@typegpu/noise'
 import { SPHERE_DIVISIONS } from "./data/settings";
 
-let strength = 0.3;
-let epsilon = 0.2;
+export let strength = 0.3;
+let epsilon = 0.01;
 
 export function SetStrength(newStrength: number) {
   strength = newStrength;
@@ -131,7 +131,7 @@ export function generateSphere(root: TgpuRoot, perlinOffset: number, isSphere: n
     d.vec2u(0, 1),
   ]);
 
-  const createSphereComputePipeline = root.createGuardedComputePipeline((x: number, y: number) => {
+  const createSphereComputePipeline = root.with(randomGeneratorSlot, XOROSHIRO64STARSTAR).createGuardedComputePipeline((x: number, y: number) => {
     "use gpu";
 
     const divisions = sphereComputeLayout.$.divisions;

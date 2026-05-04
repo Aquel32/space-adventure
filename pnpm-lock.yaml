@@ -12,11 +12,11 @@ importers:
   .:
     dependencies:
       '@typegpu/noise':
-        specifier: ^0.11.0
-        version: 0.11.0(typegpu@0.11.2)
+        specifier: https://pkg.pr.new/software-mansion/TypeGPU/@typegpu/noise@a23dfe9e4b7a2b4a212ecf43c054705f1d10fd8d
+        version: https://pkg.pr.new/software-mansion/TypeGPU/@typegpu/noise@a23dfe9e4b7a2b4a212ecf43c054705f1d10fd8d(typegpu@https://pkg.pr.new/software-mansion/TypeGPU/typegpu@a23dfe9e4b7a2b4a212ecf43c054705f1d10fd8d)
       typegpu:
-        specifier: ^0.11.2
-        version: 0.11.2
+        specifier: https://pkg.pr.new/software-mansion/TypeGPU/typegpu@a23dfe9e4b7a2b4a212ecf43c054705f1d10fd8d
+        version: https://pkg.pr.new/software-mansion/TypeGPU/typegpu@a23dfe9e4b7a2b4a212ecf43c054705f1d10fd8d
       wgpu-matrix:
         specifier: ^3.4.2
         version: 3.4.2
@@ -34,8 +34,8 @@ importers:
         specifier: npm:tsover@6.0.0
         version: tsover@6.0.0
       unplugin-typegpu:
-        specifier: ^0.11.0
-        version: 0.11.0(typegpu@0.11.2)
+        specifier: https://pkg.pr.new/software-mansion/TypeGPU/unplugin-typegpu@a23dfe9e4b7a2b4a212ecf43c054705f1d10fd8d
+        version: https://pkg.pr.new/software-mansion/TypeGPU/unplugin-typegpu@a23dfe9e4b7a2b4a212ecf43c054705f1d10fd8d(typegpu@https://pkg.pr.new/software-mansion/TypeGPU/typegpu@a23dfe9e4b7a2b4a212ecf43c054705f1d10fd8d)
       vite:
         specifier: ^8.0.4
         version: 8.0.8
@@ -512,10 +512,11 @@ packages:
   '@tybys/wasm-util@0.10.1':
     resolution: {integrity: sha512-9tTaPJLSiejZKx+Bmog4uSubteqTvFrVrURwkmHixBo0G4seD0zUxp98E1DzUBJxLQ3NPwXrGKDiVjwx/DpPsg==}
 
-  '@typegpu/noise@0.11.0':
-    resolution: {integrity: sha512-4q5unoJz6MniMFIsazxCwiQFsaAV6YZD1iNdiXV/H6tWGi40Plknpm2Azn1ZMDaJIg6gz1sokp5sDXEbfqKIIw==}
+  '@typegpu/noise@https://pkg.pr.new/software-mansion/TypeGPU/@typegpu/noise@a23dfe9e4b7a2b4a212ecf43c054705f1d10fd8d':
+    resolution: {integrity: sha512-qftDsiKCIq6jhYkRH9kH4L3CMxKD1VmZRvFzhOsRCHoszBUcMfBOPGIw9nt4oSFpGTodo0M3lbSYBwyeZ7MOFQ==, tarball: https://pkg.pr.new/software-mansion/TypeGPU/@typegpu/noise@a23dfe9e4b7a2b4a212ecf43c054705f1d10fd8d}
+    version: 0.11.0
     peerDependencies:
-      typegpu: ^0.11.0
+      typegpu: ^0.11.3
 
   '@types/estree@1.0.8':
     resolution: {integrity: sha512-dWHzHa2WqEXI/O1E9OjrocMTKJl2mSrEolh1Iomrv6U+JuNwaHXsXx9bLu5gG7BUWFIN0skIQJQ/L1rIex4X6w==}
@@ -1042,14 +1043,16 @@ packages:
   typed-binary@4.3.3:
     resolution: {integrity: sha512-W2hLsSzt3k/tg38gDE4Fn/QiwcoqGuUHBc2cb3mXuH7KcYxe/GM57vzW14s2/bawB4R5knGgGq8Xb57vsaJ4Sg==}
 
-  typegpu@0.11.2:
-    resolution: {integrity: sha512-wJeYeW25uidpNMyD4+5lehn39qd9iVpH5gXuJNwHYSOig69xHSLMBeHy6XnbiBdh+F5fh9dDehdVARl9g7n2qw==}
+  typegpu@https://pkg.pr.new/software-mansion/TypeGPU/typegpu@a23dfe9e4b7a2b4a212ecf43c054705f1d10fd8d:
+    resolution: {integrity: sha512-9uOaJcbBJdNEvxJ3wHQqiQTCijOJtBYmzfhrR0bTzTEthwQTHYcCi/5QrUPAs3CyAn6rWUm5ZDKyFhX+r1TTLg==, tarball: https://pkg.pr.new/software-mansion/TypeGPU/typegpu@a23dfe9e4b7a2b4a212ecf43c054705f1d10fd8d}
+    version: 0.11.3
     engines: {node: '>=12.20.0'}
 
-  unplugin-typegpu@0.11.0:
-    resolution: {integrity: sha512-5uEOrSbs4H+hFqlMd7PcAQAIxJy5uMl5gGdZurI6NeyQWaNBxO4jkHFo/yrxjXpSiQFiz431j7sou2eSIjjzCA==}
+  unplugin-typegpu@https://pkg.pr.new/software-mansion/TypeGPU/unplugin-typegpu@a23dfe9e4b7a2b4a212ecf43c054705f1d10fd8d:
+    resolution: {integrity: sha512-x9Y7Mhs4EYF/BYcC9/J4FZE/LezPiiixFJieTxODDKGA1KdZp5f8emUPDSCaJe9BF21RkDuPG/qnqGINcgXpeg==, tarball: https://pkg.pr.new/software-mansion/TypeGPU/unplugin-typegpu@a23dfe9e4b7a2b4a212ecf43c054705f1d10fd8d}
+    version: 0.11.3
     peerDependencies:
-      typegpu: ^0.11.0
+      typegpu: ^0.11.3
 
   unplugin@2.3.11:
     resolution: {integrity: sha512-5uKD0nqiYVzlmCRs01Fhs2BdkEgBS3SAVP6ndrBsuK42iC2+JHyxM05Rm9G8+5mkmRtzMZGY8Ct5+mliZxU/Ww==}
@@ -1444,9 +1447,9 @@ snapshots:
       tslib: 2.8.1
     optional: true
 
-  '@typegpu/noise@0.11.0(typegpu@0.11.2)':
+  '@typegpu/noise@https://pkg.pr.new/software-mansion/TypeGPU/@typegpu/noise@a23dfe9e4b7a2b4a212ecf43c054705f1d10fd8d(typegpu@https://pkg.pr.new/software-mansion/TypeGPU/typegpu@a23dfe9e4b7a2b4a212ecf43c054705f1d10fd8d)':
     dependencies:
-      typegpu: 0.11.2
+      typegpu: https://pkg.pr.new/software-mansion/TypeGPU/typegpu@a23dfe9e4b7a2b4a212ecf43c054705f1d10fd8d
 
   '@types/estree@1.0.8': {}
 
@@ -1970,13 +1973,13 @@ snapshots:
 
   typed-binary@4.3.3: {}
 
-  typegpu@0.11.2:
+  typegpu@https://pkg.pr.new/software-mansion/TypeGPU/typegpu@a23dfe9e4b7a2b4a212ecf43c054705f1d10fd8d:
     dependencies:
       tinyest: 0.3.1
       tsover-runtime: 0.0.6
       typed-binary: 4.3.3
 
-  unplugin-typegpu@0.11.0(typegpu@0.11.2):
+  unplugin-typegpu@https://pkg.pr.new/software-mansion/TypeGPU/unplugin-typegpu@a23dfe9e4b7a2b4a212ecf43c054705f1d10fd8d(typegpu@https://pkg.pr.new/software-mansion/TypeGPU/typegpu@a23dfe9e4b7a2b4a212ecf43c054705f1d10fd8d):
     dependencies:
       '@babel/parser': 7.29.2
       '@babel/traverse': 7.29.0
@@ -1988,7 +1991,7 @@ snapshots:
       picomatch: 4.0.4
       tinyest: 0.3.1
       tinyest-for-wgsl: 0.3.2
-      typegpu: 0.11.2
+      typegpu: https://pkg.pr.new/software-mansion/TypeGPU/typegpu@a23dfe9e4b7a2b4a212ecf43c054705f1d10fd8d
       unplugin: 3.0.0
     transitivePeerDependencies:
       - supports-color

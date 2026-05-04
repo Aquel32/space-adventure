@@ -27,6 +27,7 @@ import { PrepareUI } from "./ui-controls";
 import { writeSoA } from "typegpu/common";
 import { PrepareShadows } from "./shadows";
 import { sample } from "./cpuPerlin";
+import * as m from "wgpu-matrix";
 
 document.querySelector<HTMLDivElement>("#app")!.innerHTML = `
 <main>
@@ -340,17 +341,70 @@ const shadowsBindGroup = root.createBindGroup(shadowsLayout, {
 
 function checkForCollision() {
   "use gpu";
-  const pointInWorld = d.vec3f(0, 30, 30);
-  const direction = pointInWorld;
-  const normalizedDirection = std.normalize(direction);
 
-  const perlinValue = sample(normalizedDirection);
+  if (ATTACHED_BODY_INDEX === -1) {
+    return {
+      collides: false,
+      distance: -1,
+      direction: d.vec3f(1, 1, 1),
+      normal: d.vec3f(1, 1, 1),
+    }
+  }
+
+  const attachedBodyPos = d.vec3f(
+    positionsArray[ATTACHED_BODY_INDEX * 3],
+    positionsArray[ATTACHED_BODY_INDEX * 3 + 1],
+    positionsArray[ATTACHED_BODY_INDEX * 3 + 2],
+  );
+
+  const perlinOffset = d.vec3f(ATTACHED_BODY_INDEX, 0, 0);
+
+  const planetAngle = currentRotationArray[ATTACHED_BODY_INDEX];
+  const reverseRotationMatrix = m.mat4.rotationY(-planetAngle, d.mat4x4f());
+
+  const direction = attachedBodyPos.sub(camera.state.pos);
+  const normalizedDirection = std.normalize(direction);
+  const distance = std.length(direction);
+
+  const pointOnInitialSphere = reverseRotationMatrix.mul(d.vec4f(normalizedDirection, 1)).xyz;
+  const perlinValue = 1 + (sample(pointOnInitialSphere + perlinOffset) * sphere.strength);
+  const pointOnSphereWithPerlinNormalized = std.normalize(pointOnInitialSphere.mul(perlinValue));
+
+  const surfaceHeight = perlinValue * bodies[ATTACHED_BODY_INDEX].radius;
+  if (distance - 2 <= surfaceHeight) {
+    return {
+      collides: true,
+      distance,
+      direction: normalizedDirection,
+      normal: pointOnSphereWithPerlinNormalized,
+    };
+  }
+
+  return {
+    collides: false,
+    distance,
+    direction: d.vec3f(1, 1, 1),
+    normal: pointOnSphereWithPerlinNormalized,
+  }
 }
 
-checkForCollision();
+// camera.setUp(d.vec3f(1, 0, 0));
+// camera.setUp(d.vec3f(0, 1, 0));
 
 function render() {
+  const collisionInfo = checkForCollision();
+
   camera.updatePosition();
+
+  if (collisionInfo.collides) {
+    camera.setPosition(camera.state.pos.sub(collisionInfo.direction.mul(0.3)));
+  }
+  if (collisionInfo.distance !== -1 && collisionInfo.distance < 10) {
+    camera.setUp(collisionInfo.normal.mul(d.vec3f(1, -1, 1)));
+  }
+  else {
+    camera.setUp(d.vec3f(0, 1, 0));
+  }
 
   simulation.simulateGravity(positionsArray, velocitiesArray, bodies);
   simulation.simulateRotation();

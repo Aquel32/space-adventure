@@ -3,7 +3,6 @@ import { d, std } from "typegpu";
 
 export const Camera = d.struct({
   pos: d.vec4f,
-  targetPos: d.vec4f,
   view: d.mat4x4f,
   projection: d.mat4x4f,
   viewInverse: d.mat4x4f,
@@ -12,7 +11,6 @@ export const Camera = d.struct({
 
 export interface CameraOptions {
   initPos?: d.v3f;
-  target?: d.v3f;
   /**
    * Scrolling accelerates/decelerates the movement.
    * `d.vec3f(minimum, initial, maximum)`
@@ -22,7 +20,6 @@ export interface CameraOptions {
 
 const cameraDefaults: Partial<CameraOptions> = {
   initPos: d.vec3f(0, 0, 0),
-  target: d.vec3f(0, 1, 0),
   speed: d.vec3f(1, 1, 1),
 };
 
@@ -43,34 +40,60 @@ export function setupFirstPersonCamera(
     pos: options.initPos,
     yaw: 0,
     pitch: 0,
+    up: d.vec3f(0, 1, 0),
+    bodyMatrix: m.mat4.identity(d.mat4x4f()),
   };
 
   function runCallback() {
     const position = cameraState.pos;
     const pitch = cameraState.pitch;
-    const yaw = cameraState.yaw;
-    const target = position.add(d.vec3f(std.cos(pitch) * std.sin(yaw), std.sin(pitch), std.cos(pitch) * std.cos(yaw)));
 
-    const view = calculateView(position, target);
+    const headMatrix = m.mat4.axisRotate(cameraState.bodyMatrix, d.vec3f(1, 0, 0), pitch, d.mat4x4f());
+
+    const translationMatrix = m.mat4.translation(position, d.mat4x4f());
+    const viewInverse = m.mat4.mul(translationMatrix, headMatrix, d.mat4x4f());
     const projection = calculateProj(canvas.clientWidth / canvas.clientHeight);
 
     callback(
       Camera({
         pos: d.vec4f(position, 1),
-        targetPos: d.vec4f(target, 1),
-        view,
+        view: invertMat(viewInverse),
         projection,
-        viewInverse: invertMat(view),
+        viewInverse: viewInverse,
         projectionInverse: invertMat(projection),
       }),
     );
   }
 
+  function setUp(newUp: d.v3f) {
+    const lastUp = cameraState.up;
+
+    if (newUp.x === lastUp.x && newUp.y === lastUp.y && newUp.z === lastUp.z) {
+      return;
+    }
+
+    const axis = std.normalize(std.cross(newUp, lastUp));
+    const angle = Math.acos(std.dot(lastUp, newUp));
+
+    if (isNaN(angle)) {
+      return;
+    }
+
+    m.mat4.axisRotate(cameraState.bodyMatrix, axis, angle, cameraState.bodyMatrix);
+
+    cameraState.up = newUp;
+    runCallback();
+  }
+
   function rotateCamera(dx: number, dy: number) {
     const orbitSensitivity = 0.005;
-    cameraState.yaw += -dx * orbitSensitivity;
+    cameraState.yaw -= dx * orbitSensitivity;
     cameraState.pitch -= dy * orbitSensitivity;
     cameraState.pitch = std.clamp(cameraState.pitch, -Math.PI / 2 + 0.01, Math.PI / 2 - 0.01);
+
+    // const upVector = cameraState.bodyMatrix.columns[1].xyz;
+    const upVector = d.vec3f(0, 1, 0);
+    m.mat4.axisRotate(cameraState.bodyMatrix, upVector, -dx * orbitSensitivity, cameraState.bodyMatrix);
 
     runCallback();
   }
@@ -127,10 +150,9 @@ export function setupFirstPersonCamera(
 
   // update position function
   const updatePosition = () => {
-    const forward = std
-      .normalize(d.vec3f(std.sin(cameraState.yaw), 0, std.cos(cameraState.yaw)))
-      .mul(moveSpeed);
-    const left = d.vec3f(forward.z, 0, -forward.x);
+    const up = cameraState.bodyMatrix.columns[1].xyz.mul(-moveSpeed);
+    const forward = cameraState.bodyMatrix.columns[2].xyz.mul(-moveSpeed);
+    const left = cameraState.bodyMatrix.columns[0].xyz.mul(-moveSpeed);
 
     if (pressedKeys.has("w")) {
       cameraState.pos = cameraState.pos.add(forward);
@@ -145,10 +167,10 @@ export function setupFirstPersonCamera(
       cameraState.pos = cameraState.pos.sub(left);
     }
     if (pressedKeys.has("shift")) {
-      cameraState.pos.y -= moveSpeed;
+      cameraState.pos = cameraState.pos.add(up);
     }
     if (pressedKeys.has(" ")) {
-      cameraState.pos.y += moveSpeed;
+      cameraState.pos = cameraState.pos.sub(up);
     }
     runCallback();
   };
@@ -158,11 +180,18 @@ export function setupFirstPersonCamera(
     runCallback();
   };
 
+  const setRotation = (pitch: number, yaw: number) => {
+    cameraState.pitch = pitch;
+    cameraState.yaw = yaw;
+    runCallback();
+  };
+
+
   runCallback();
-  return { state: cameraState, cleanupCamera, updatePosition, setPosition };
+  return { state: cameraState, cleanupCamera, updatePosition, setPosition, setUp, setRotation };
 }
 
-export function calculateView(position: d.v3f, target: d.v3f, up: d.v3f = d.vec3f(0, 1, 0)) {
+export function calculateView(position: d.v3f, target: d.v3f, up: d.v3f) {
   return m.mat4.lookAt(position, target, up, d.mat4x4f());
 }
 

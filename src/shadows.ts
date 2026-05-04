@@ -29,7 +29,6 @@ export function PrepareShadows(
     }[],
     cameraUniform: TgpuUniform<d.WgslStruct<{
         pos: d.Vec4f;
-        targetPos: d.Vec4f;
         view: d.Mat4x4f;
         projection: d.Mat4x4f;
         viewInverse: d.Mat4x4f;

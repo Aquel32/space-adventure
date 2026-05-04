@@ -59,7 +59,7 @@ export function SetAttachedBody(newIndex: number) {
     moveCameraToAttachedObject();
 }
 
-export const SPHERE_DIVISIONS = 3;
+export const SPHERE_DIVISIONS = 7;
 
 export let DEPTH_BIAS = 0.1;
 export function SetDepthBias(newDepthBias: number) {

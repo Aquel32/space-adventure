@@ -40,7 +40,6 @@ export function setupFirstPersonCamera(
     pos: options.initPos,
     yaw: 0,
     pitch: 0,
-    up: d.vec3f(0, 1, 0),
     bodyMatrix: m.mat4.identity(d.mat4x4f()),
   };
 
@@ -66,22 +65,21 @@ export function setupFirstPersonCamera(
   }
 
   function setUp(newUp: d.v3f) {
-    const lastUp = cameraState.up;
+    const lastUp = cameraState.bodyMatrix.columns[1].xyz;
 
-    if (newUp.x === lastUp.x && newUp.y === lastUp.y && newUp.z === lastUp.z) {
+    if (std.allEq(newUp, lastUp) || std.allEq(newUp, lastUp.mul(-1))) {
+      // handle going head first towards a planet
       return;
     }
 
-    const axis = std.normalize(std.cross(newUp, lastUp));
-    const angle = Math.acos(std.dot(lastUp, newUp));
+    const axis = std.normalize(std.cross(lastUp, newUp));
 
-    if (isNaN(angle)) {
-      return;
-    }
+    // clamp the dot product to ensure value is within the valid range for acos
+    const angle = Math.acos(std.clamp(std.dot(lastUp, newUp), -1, 1));
 
-    m.mat4.axisRotate(cameraState.bodyMatrix, axis, angle, cameraState.bodyMatrix);
+    const rotationMat = m.mat4.axisRotation(axis, angle, d.mat4x4f());
+    m.mat4.mul(rotationMat, cameraState.bodyMatrix, cameraState.bodyMatrix);
 
-    cameraState.up = newUp;
     runCallback();
   }
 

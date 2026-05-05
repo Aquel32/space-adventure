@@ -222,8 +222,9 @@ const mainRenderPipeline = root.createRenderPipeline({
     const lightDir = toLight.add(normal.mul(normalMove / 1000)).div(dist).mul(d.vec3f(-1, 1, 1));
     const depthRef = (dist - normalOffset) / 1000;
 
-    const inShadow = std.textureSampleCompareLevel(shadowsLayout.$.texture, shadowsLayout.$.sampler, lightDir, depthRef);
-    let finalColor = (groundColor * diffuse + specular) * inShadow;
+    let inShadow = std.textureSampleCompareLevel(shadowsLayout.$.texture, shadowsLayout.$.sampler, lightDir, depthRef);
+    inShadow = 0.4 + inShadow * 0.6; // ambient term
+    let finalColor = (groundColor * (0.4 + diffuse * 0.6) + specular) * inShadow;
 
     if (debugShadowsUniform.$ === 1) {
       finalColor = d.vec4f(d.vec3f(inShadow), 1);
@@ -309,7 +310,12 @@ export function moveCameraToAttachedObject() {
   camera.setPosition(attachedBodyPosition.sub(d.vec3f(0, 0, bodies[ATTACHED_BODY_INDEX].radius * 3)));
 }
 
-function moveCameraWithAttachedObjectVelocity() {
+function moveCameraWithAttachedObjectVelocity(collisionInfo: {
+  collides: boolean;
+  distance: number;
+  direction: d.v3f;
+  normal: d.v3f;
+}) {
   if (ATTACHED_BODY_INDEX === -1) return;
 
   const cameraPosition = camera.state.pos;
@@ -362,13 +368,12 @@ function checkForCollision() {
   const planetAngle = currentRotationArray[ATTACHED_BODY_INDEX];
   const reverseRotationMatrix = m.mat4.rotationY(-planetAngle, d.mat4x4f());
 
-  const direction = attachedBodyPos.sub(camera.state.pos);
+  const direction = camera.state.pos.sub(attachedBodyPos);
   const normalizedDirection = std.normalize(direction);
   const distance = std.length(direction);
 
   const pointOnInitialSphere = reverseRotationMatrix.mul(d.vec4f(normalizedDirection, 1)).xyz;
   const perlinValue = 1 + (sample(pointOnInitialSphere + perlinOffset) * sphere.strength);
-  const pointOnSphereWithPerlinNormalized = std.normalize(pointOnInitialSphere.mul(perlinValue));
 
   const surfaceHeight = perlinValue * bodies[ATTACHED_BODY_INDEX].radius;
   if (distance - 2 <= surfaceHeight) {
@@ -376,7 +381,7 @@ function checkForCollision() {
       collides: true,
       distance,
       direction: normalizedDirection,
-      normal: pointOnSphereWithPerlinNormalized,
+      normal: normalizedDirection,
     };
   }
 
@@ -384,7 +389,7 @@ function checkForCollision() {
     collides: false,
     distance,
     direction: d.vec3f(1, 1, 1),
-    normal: pointOnSphereWithPerlinNormalized,
+    normal: normalizedDirection,
   }
 }
 
@@ -397,10 +402,10 @@ function render() {
   camera.updatePosition();
 
   if (collisionInfo.collides) {
-    camera.setPosition(camera.state.pos.sub(collisionInfo.direction.mul(0.3)));
+    camera.setPosition(camera.state.pos.add(collisionInfo.direction.mul(0.3)));
   }
   if (collisionInfo.distance !== -1 && collisionInfo.distance < 10) {
-    camera.setUp(collisionInfo.normal.mul(d.vec3f(1, -1, 1)));
+    camera.setUp(collisionInfo.normal);
   }
   else {
     camera.setUp(d.vec3f(0, 1, 0));
@@ -412,7 +417,7 @@ function render() {
   bodiesPositionsBuffer.write(positionsArray);
   bodiesVelocitiesBuffer.write(velocitiesArray);
 
-  moveCameraWithAttachedObjectVelocity();
+  moveCameraWithAttachedObjectVelocity(collisionInfo);
 
   if (frame % (ORBIT_PREDICTION_STEPS / 2) === 0) {
     simulation.predictOrbits(positionsArray, velocitiesArray, bodies);

@@ -22,7 +22,7 @@ import * as sphere from "./sphere";
 import { BODY_COUNT_CONST, CelestianBody, INITIAL_BODIES } from "./data/simulation-data";
 import { ATTACHED_BODY_INDEX, DEBUG_NORMALS, DEBUG_SHADOWS, NORMAL_OFFSET, ORBIT_PREDICTION_STEPS, RENDER_ORBITS, SetAttachedBody, SHOW_DEPTH_CUBE, SIMULATION_SPEED } from "./data/settings";
 import { PrepareBloom } from "./postprocessing/bloom";
-import { bodiesToArrays, PrepareSimulation } from "./simulation";
+import { bodiesToArrays, getBodyRotationSpeedInAngle, PrepareSimulation } from "./simulation";
 import { PrepareUI } from "./ui-controls";
 import { writeSoA } from "typegpu/common";
 import { PrepareShadows } from "./shadows";
@@ -326,8 +326,27 @@ function moveCameraWithAttachedObjectVelocity(collisionInfo: {
     velocitiesArray[ATTACHED_BODY_INDEX * 3 + 2],
   );
 
-  const newCameraPos = cameraPosition.add(attachedBodyVelocity.mul(SIMULATION_SPEED));
+  if (collisionInfo.distance === -1 || collisionInfo.distance > 10) {
+    const newCameraPos = cameraPosition.add(attachedBodyVelocity.mul(SIMULATION_SPEED));
+    camera.setPosition(newCameraPos);
+    return;
+  }
+
+  const attachedBodyPos = d.vec3f(
+    positionsArray[ATTACHED_BODY_INDEX * 3],
+    positionsArray[ATTACHED_BODY_INDEX * 3 + 1],
+    positionsArray[ATTACHED_BODY_INDEX * 3 + 2],
+  );
+
+  const direction = camera.state.pos.sub(attachedBodyPos);
+
+  const rotationAngle = getBodyRotationSpeedInAngle(bodies[ATTACHED_BODY_INDEX]);
+  const attachedBodyRotationMatrix = m.mat4.rotationY(rotationAngle, d.mat4x4f());
+  const rotatedDirection = attachedBodyRotationMatrix.mul(d.vec4f(direction, 1)).xyz;
+
+  const newCameraPos = cameraPosition.sub(direction).add(rotatedDirection).add(attachedBodyVelocity.mul(SIMULATION_SPEED));;
   camera.setPosition(newCameraPos);
+  camera.rotateCameraByAngle(rotationAngle);
 }
 
 const simulation = PrepareSimulation(root, canvas, context, cameraUniform, bodies, rotationMatricesArray, bodiesRotationMatriciesBuffer, currentRotationArray);

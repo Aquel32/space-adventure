@@ -20,6 +20,10 @@ export function bodiesToArrays(bodies: d.Infer<typeof CelestianBody>[]) {
     return { positions, velocities };
 }
 
+export function getBodyRotationSpeedInAngle(body: d.Infer<typeof CelestianBody>) {
+    return body.rotationSpeed * (Math.PI / 180) * SIMULATION_SPEED;
+}
+
 export function PrepareSimulation(
     root: TgpuRoot,
     canvas: HTMLCanvasElement,
@@ -170,7 +174,7 @@ export function PrepareSimulation(
     function simulateRotation() {
         bodies.forEach((body, i) => {
             const currentAngle = currentRotationArray[i];
-            const newAngle = currentAngle + body.rotationSpeed * (Math.PI / 180) * SIMULATION_SPEED;
+            const newAngle = currentAngle + getBodyRotationSpeedInAngle(body);
             currentRotationArray[i] = newAngle;
 
             const rotationMatrix = m.mat4.rotationY(newAngle);

@@ -96,6 +96,13 @@ export function setupFirstPersonCamera(
     runCallback();
   }
 
+  function rotateCameraByAngle(angle: number) {
+    const upVector = cameraState.bodyMatrix.columns[1].xyz;
+
+    m.mat4.axisRotate(cameraState.bodyMatrix, upVector, angle, cameraState.bodyMatrix);
+    runCallback();
+  }
+
   // resize observer
   const resizeObserver = new ResizeObserver(() => {
     runCallback();
@@ -178,15 +185,8 @@ export function setupFirstPersonCamera(
     runCallback();
   };
 
-  const setRotation = (pitch: number, yaw: number) => {
-    cameraState.pitch = pitch;
-    cameraState.yaw = yaw;
-    runCallback();
-  };
-
-
   runCallback();
-  return { state: cameraState, cleanupCamera, updatePosition, setPosition, setUp, setRotation };
+  return { state: cameraState, cleanupCamera, updatePosition, setPosition, setUp, rotateCameraByAngle };
 }
 
 export function calculateView(position: d.v3f, target: d.v3f, up: d.v3f) {

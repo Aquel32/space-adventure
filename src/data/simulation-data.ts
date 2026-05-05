@@ -135,8 +135,8 @@ export const INITIAL_BODIES = d.arrayOf(
 
   {
     position: d.vec3f(38.7, 0, 0),
-    // radius: MERCURY_RENDER_RADIUS,
-    radius: 2,
+    radius: MERCURY_RENDER_RADIUS,
+    // radius: 2,
     rotationSpeed: d.f32(0.1),
     colors: [
       { color: d.vec4f(0.24, 0.23, 0.22, 1), height: 0.90 },
@@ -149,8 +149,8 @@ export const INITIAL_BODIES = d.arrayOf(
   }, // Mercury
   {
     position: d.vec3f(72.3, 0, 0),
-    // radius: VENUS_RENDER_RADIUS,
-    radius: 6,
+    radius: VENUS_RENDER_RADIUS,
+    // radius: 6,
     rotationSpeed: d.f32(-0.1),
     colors: [
       { color: d.vec4f(0.45, 0.3, 0.16, 1), height: 0.90 },
@@ -163,8 +163,8 @@ export const INITIAL_BODIES = d.arrayOf(
   }, // Venus
   {
     position: d.vec3f(EARTH_DISTANCE, 0, 0),
-    // radius: EARTH_BODY_RENDER_RADIUS,
-    radius: 5,
+    radius: EARTH_BODY_RENDER_RADIUS,
+    // radius: 5,
     rotationSpeed: d.f32(0.1),
     colors: [
       { color: d.vec4f(0.18, 0.42, 0.72, 1), height: 0.90 },
@@ -177,8 +177,8 @@ export const INITIAL_BODIES = d.arrayOf(
   }, // Earth
   {
     position: d.vec3f(EARTH_DISTANCE, MOON_ORBIT_RADIUS, 0),
-    // radius: MOON_RENDER_RADIUS,
-    radius: 1,
+    radius: MOON_RENDER_RADIUS,
+    // radius: 1,
     rotationSpeed: d.f32(0.1),
     colors: [
       { color: d.vec4f(0.2, 0.2, 0.18, 1), height: 0.90 },
@@ -191,8 +191,8 @@ export const INITIAL_BODIES = d.arrayOf(
   }, // Moon
   {
     position: d.vec3f(152.4, 0, 0),
-    // radius: MARS_RENDER_RADIUS,
-    radius: 20,
+    radius: MARS_RENDER_RADIUS,
+    // radius: 20,
     rotationSpeed: d.f32(0.1),
     colors: [
       { color: d.vec4f(0.3, 0.12, 0.08, 1), height: 0.90 },
@@ -205,8 +205,8 @@ export const INITIAL_BODIES = d.arrayOf(
   }, // Mars
   {
     position: d.vec3f(520.3, 0, 0),
-    // radius: JUPITER_RENDER_RADIUS,
-    radius: 60,
+    radius: JUPITER_RENDER_RADIUS,
+    // radius: 60,
     rotationSpeed: d.f32(0.1),
     colors: [
       { color: d.vec4f(0.43, 0.29, 0.2, 1), height: 0.90 },

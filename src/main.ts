@@ -53,7 +53,7 @@ const camera = setupFirstPersonCamera(
   canvas,
   {
     initPos: d.vec3f(20, 0, 0),
-    speed: d.vec3f(0.01, 0.1, 5),
+    speed: d.vec3f(0.001, 0.01, 5),
   },
   (props) => {
     cameraUniform.patch(props);
@@ -313,12 +313,10 @@ export function moveCameraToAttachedObject() {
 function moveCameraWithAttachedObjectVelocity(collisionInfo: {
   collides: boolean;
   distance: number;
-  direction: d.v3f;
   normal: d.v3f;
 }) {
   if (ATTACHED_BODY_INDEX === -1) return;
 
-  const cameraPosition = camera.state.pos;
 
   const attachedBodyVelocity = d.vec3f(
     velocitiesArray[ATTACHED_BODY_INDEX * 3],
@@ -326,27 +324,33 @@ function moveCameraWithAttachedObjectVelocity(collisionInfo: {
     velocitiesArray[ATTACHED_BODY_INDEX * 3 + 2],
   );
 
-  if (collisionInfo.distance === -1 || collisionInfo.distance > 10) {
-    const newCameraPos = cameraPosition.add(attachedBodyVelocity.mul(SIMULATION_SPEED));
-    camera.setPosition(newCameraPos);
+  const cameraPosition = camera.state.pos.add(attachedBodyVelocity.mul(SIMULATION_SPEED));
+
+  if (collisionInfo.distance === -1 || collisionInfo.distance > bodies[ATTACHED_BODY_INDEX].radius + 2) {
+    camera.setPosition(cameraPosition);
     return;
   }
 
+  // pozycja stara (przed przesunieciem symulacji tej klatki)
   const attachedBodyPos = d.vec3f(
     positionsArray[ATTACHED_BODY_INDEX * 3],
     positionsArray[ATTACHED_BODY_INDEX * 3 + 1],
     positionsArray[ATTACHED_BODY_INDEX * 3 + 2],
-  );
+  ).add(attachedBodyVelocity.mul(-SIMULATION_SPEED));
 
+  // to samo niezaleznie od rotacij
   const direction = camera.state.pos.sub(attachedBodyPos);
 
+  // ile sie obroci w tej klatce
   const rotationAngle = getBodyRotationSpeedInAngle(bodies[ATTACHED_BODY_INDEX]);
   const attachedBodyRotationMatrix = m.mat4.rotationY(rotationAngle, d.mat4x4f());
+
+  // direction po rotacji tej klatki
   const rotatedDirection = attachedBodyRotationMatrix.mul(d.vec4f(direction, 1)).xyz;
 
-  const newCameraPos = cameraPosition.sub(direction).add(rotatedDirection).add(attachedBodyVelocity.mul(SIMULATION_SPEED));;
+  const newCameraPos = cameraPosition.sub(direction).add(rotatedDirection);
   camera.setPosition(newCameraPos);
-  camera.rotateCameraByAngle(rotationAngle);
+  camera.state.bodyMatrix = attachedBodyRotationMatrix.mul(camera.state.bodyMatrix);
 }
 
 const simulation = PrepareSimulation(root, canvas, context, cameraUniform, bodies, rotationMatricesArray, bodiesRotationMatriciesBuffer, currentRotationArray);
@@ -371,8 +375,8 @@ function checkForCollision() {
     return {
       collides: false,
       distance: -1,
-      direction: d.vec3f(1, 1, 1),
       normal: d.vec3f(1, 1, 1),
+      surfaceHeight: -1,
     }
   }
 
@@ -395,46 +399,44 @@ function checkForCollision() {
   const perlinValue = 1 + (sample(pointOnInitialSphere + perlinOffset) * sphere.strength);
 
   const surfaceHeight = perlinValue * bodies[ATTACHED_BODY_INDEX].radius;
-  if (distance - 2 <= surfaceHeight) {
+  if (distance <= surfaceHeight) {
     return {
       collides: true,
       distance,
-      direction: normalizedDirection,
       normal: normalizedDirection,
+      surfaceHeight,
     };
   }
 
   return {
     collides: false,
     distance,
-    direction: d.vec3f(1, 1, 1),
     normal: normalizedDirection,
+    surfaceHeight: surfaceHeight,
   }
 }
 
-// camera.setUp(d.vec3f(1, 0, 0));
-// camera.setUp(d.vec3f(0, 1, 0));
-
 function render() {
-  const collisionInfo = checkForCollision();
-
   camera.updatePosition();
 
-  if (collisionInfo.collides) {
-    camera.setPosition(camera.state.pos.add(collisionInfo.direction.mul(0.3)));
-  }
-  if (collisionInfo.distance !== -1 && collisionInfo.distance < 10) {
-    camera.setUp(collisionInfo.normal);
-  }
-  else {
-    camera.setUp(d.vec3f(0, 1, 0));
-  }
+  const collisionInfo = checkForCollision();
 
   simulation.simulateGravity(positionsArray, velocitiesArray, bodies);
   simulation.simulateRotation();
 
   bodiesPositionsBuffer.write(positionsArray);
   bodiesVelocitiesBuffer.write(velocitiesArray);
+
+  // if (collisionInfo.collides) {
+  //   camera.setPosition(camera.state.pos.add(collisionInfo.normal.mul(collisionInfo.surfaceHeight - collisionInfo.distance + 0.01)));
+  // }
+
+  if (collisionInfo.distance !== -1 && collisionInfo.distance < bodies[ATTACHED_BODY_INDEX].radius + 2) {
+    camera.setUp(collisionInfo.normal);
+  }
+  else {
+    camera.setUp(d.vec3f(0, 1, 0));
+  }
 
   moveCameraWithAttachedObjectVelocity(collisionInfo);
 

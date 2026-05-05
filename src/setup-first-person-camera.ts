@@ -67,7 +67,7 @@ export function setupFirstPersonCamera(
   function setUp(newUp: d.v3f) {
     const lastUp = cameraState.bodyMatrix.columns[1].xyz;
 
-    if (std.allEq(newUp, lastUp) || std.allEq(newUp, lastUp.mul(-1))) {
+    if (std.abs(std.dot(lastUp, newUp)) > 0.999) {
       // handle going head first towards a planet
       return;
     }
@@ -75,7 +75,7 @@ export function setupFirstPersonCamera(
     const axis = std.normalize(std.cross(lastUp, newUp));
 
     // clamp the dot product to ensure value is within the valid range for acos
-    const angle = Math.acos(std.clamp(std.dot(lastUp, newUp), -1, 1));
+    const angle = Math.acos(std.clamp(std.dot(lastUp, newUp), -1, 1)) * 0.1;
 
     const rotationMat = m.mat4.axisRotation(axis, angle, d.mat4x4f());
     m.mat4.mul(rotationMat, cameraState.bodyMatrix, cameraState.bodyMatrix);
@@ -96,9 +96,7 @@ export function setupFirstPersonCamera(
     runCallback();
   }
 
-  function rotateCameraByAngle(angle: number) {
-    const upVector = cameraState.bodyMatrix.columns[1].xyz;
-
+  function rotateCameraByAngle(angle: number, upVector: d.v3f = cameraState.bodyMatrix.columns[1].xyz) {
     m.mat4.axisRotate(cameraState.bodyMatrix, upVector, angle, cameraState.bodyMatrix);
     runCallback();
   }
@@ -193,7 +191,7 @@ export function calculateView(position: d.v3f, target: d.v3f, up: d.v3f) {
   return m.mat4.lookAt(position, target, up, d.mat4x4f());
 }
 
-export function calculateProj(aspectRatio: number, fov: number = Math.PI / 4, near: number = 0.1, far: number = 1000) {
+export function calculateProj(aspectRatio: number, fov: number = Math.PI / 4, near: number = 0.001, far: number = 1000) {
   return m.mat4.perspective(fov, aspectRatio, near, far, d.mat4x4f());
 }
 

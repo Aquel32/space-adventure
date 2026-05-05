@@ -1,7 +1,7 @@
 import { DEBUG_NORMALS, DEBUG_SHADOWS, DEPTH_BIAS, GAUSIAN_ITERATIONS, GRAVITY_MULTIPLIER, NORMAL_OFFSET, PIXEL_SCALE, RENDER_ORBITS, SetAttachedBody, SetDebugNormals, SetDebugShadows, SetDepthBias, SetGausianIterations, SetGravityMultiplier, SetNormalOffset, SetPixelScale, SetRenderOrbits, SetShowDepthCube, SetSimulationSpeed, SHOW_DEPTH_CUBE, SIMULATION_SPEED } from "./data/settings";
 import { INITIAL_BODIES } from "./data/simulation-data";
 import { ReloadSettings, SetUpBodiesRenderData } from "./main";
-import { SetEpsilon, SetStrength } from "./sphere";
+import { SetEpsilon, SetStrength, strength } from "./sphere";
 
 export function PrepareUI() {
   let controlsSetUp = false;
@@ -18,7 +18,7 @@ export function PrepareUI() {
           <p>orbit prediction</p>
           <label>Render Orbits: <input name="render-orbits" type="checkbox" class="ro" ${RENDER_ORBITS ? "checked" : ""} /></label>
           <p>sphere</p>
-          <label>Perlin Strength: <input name="strength" type="number" class="str reload" value="${0.1}" /></label>
+          <label>Perlin Strength: <input name="strength" type="number" class="str reload" value="${strength}" /></label>
           <label>Epsilon: <input name="epsilon" type="number" class="eps reload" value="${0.001}" /></label>
           <label>Debug Normals: <input name="debug-normals" type="checkbox" class="dn" ${DEBUG_NORMALS ? "checked" : ""} /></label>
           <p>shadows</p>

@@ -388,22 +388,39 @@ function checkForCollision() {
 
   const perlinOffset = d.vec3f(ATTACHED_BODY_INDEX, 0, 0);
 
-  const planetAngle = currentRotationArray[ATTACHED_BODY_INDEX];
+  const planetAngleStep = getBodyRotationSpeedInAngle(bodies[ATTACHED_BODY_INDEX]);
+  const planetAngle = currentRotationArray[ATTACHED_BODY_INDEX] + planetAngleStep;
   const reverseRotationMatrix = m.mat4.rotationY(-planetAngle, d.mat4x4f());
+  const rotationMatrix = m.mat4.rotationY(planetAngle, d.mat4x4f());
 
   const direction = camera.state.pos.sub(attachedBodyPos);
   const normalizedDirection = std.normalize(direction);
   const distance = std.length(direction);
 
   const pointOnInitialSphere = reverseRotationMatrix.mul(d.vec4f(normalizedDirection, 1)).xyz;
+
   const perlinValue = 1 + (sample(pointOnInitialSphere + perlinOffset) * sphere.strength);
+  const pointWithPerlin = pointOnInitialSphere * perlinValue;
+
+  const ex = d.vec3f(sphere.epsilon, 0, 0);
+  const ey = d.vec3f(0, sphere.epsilon, 0);
+  const ez = d.vec3f(0, 0, sphere.epsilon);
+
+  const dhdx = (sample(pointOnInitialSphere + perlinOffset + ex) - sample(pointOnInitialSphere + perlinOffset - ex)) / (2 * sphere.epsilon);
+  const dhdy = (sample(pointOnInitialSphere + perlinOffset + ey) - sample(pointOnInitialSphere + perlinOffset - ey)) / (2 * sphere.epsilon);
+  const dhdz = (sample(pointOnInitialSphere + perlinOffset + ez) - sample(pointOnInitialSphere + perlinOffset - ez)) / (2 * sphere.epsilon);
+
+  const grad = d.vec3f(dhdx, dhdy, dhdz) * sphere.strength;
+  const tangentialGrad = grad - (std.dot(grad, pointOnInitialSphere) * pointOnInitialSphere);
+  const normal = rotationMatrix.mul(d.vec4f(std.normalize(pointWithPerlin - tangentialGrad), 1)).xyz;
 
   const surfaceHeight = perlinValue * bodies[ATTACHED_BODY_INDEX].radius;
-  if (distance <= surfaceHeight) {
+
+  if (distance - 0.02 <= surfaceHeight) {
     return {
       collides: true,
       distance,
-      normal: normalizedDirection,
+      normal: normal,
       surfaceHeight,
     };
   }
@@ -411,8 +428,8 @@ function checkForCollision() {
   return {
     collides: false,
     distance,
-    normal: normalizedDirection,
-    surfaceHeight: surfaceHeight,
+    normal: normal,
+    surfaceHeight,
   }
 }
 
@@ -461,7 +478,7 @@ function render() {
 
   if (collisionInfo.collides) {
     const upVector = camera.state.bodyMatrix.columns[1].xyz;
-    camera.setPosition(camera.state.pos.add(upVector.mul(camera.speed())));
+    camera.setPosition(camera.state.pos.add(upVector.mul(collisionInfo.surfaceHeight - collisionInfo.distance + 0.02)));
   }
 
   if (frame % (ORBIT_PREDICTION_STEPS / 2) === 0) {

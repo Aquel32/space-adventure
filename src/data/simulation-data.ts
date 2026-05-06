@@ -191,7 +191,7 @@ export const INITIAL_BODIES = d.arrayOf(
   }, // Moon
   {
     position: d.vec3f(152.4, 0, 0),
-    radius: MARS_RENDER_RADIUS,
+    radius: 0.1,
     // radius: 20,
     rotationSpeed: d.f32(0.1),
     colors: [

@@ -198,7 +198,6 @@ export function PrepareSimulation(
             setPosition: (newPosition: d.v3f) => void;
             setUp: (newUp: d.v3f) => void;
             rotateCameraByAngle: (angle: number, upVector?: d.v3f) => void;
-
         },
         collisionInfo: {
             collides: boolean;
@@ -216,14 +215,15 @@ export function PrepareSimulation(
         );
 
         const direction = attachedBodyPosition.sub(camera.state.pos);
+        const normalizedDirection = std.normalize(direction);
+        const distance = std.length(direction);
 
         if (collisionInfo.distance - collisionInfo.surfaceHeight < 0.01) {
             return;
         }
 
-        const directionToBody = std.normalize(direction);
-        const pullStrength = 0.001;
-        const newCameraPosition = camera.state.pos.add(directionToBody.mul(pullStrength));
+        const gravityForce = GRAVITY_MULTIPLIER * (bodies[ATTACHED_BODY_INDEX].mass / (distance * distance));
+        const newCameraPosition = camera.state.pos.add(normalizedDirection.mul(gravityForce * SIMULATION_SPEED * 200));
         camera.setPosition(newCameraPosition);
     }
 

@@ -185,15 +185,22 @@ export function setupFirstPersonCamera(
 
   const speed = () => moveSpeed;
 
+  function resetRotation() {
+    const upVector = cameraState.bodyMatrix.columns[1].xyz;
+    m.mat4.axisRotate(cameraState.bodyMatrix, upVector, -cameraState.yaw, cameraState.bodyMatrix);
+    cameraState.yaw = 0;
+    cameraState.pitch = 0;
+  }
+
   runCallback();
-  return { state: cameraState, cleanupCamera, updatePosition, setPosition, setUp, rotateCameraByAngle, speed };
+  return { state: cameraState, cleanupCamera, resetRotation, updatePosition, setPosition, setUp, rotateCameraByAngle, speed };
 }
 
 export function calculateView(position: d.v3f, target: d.v3f, up: d.v3f) {
   return m.mat4.lookAt(position, target, up, d.mat4x4f());
 }
 
-export function calculateProj(aspectRatio: number, fov: number = Math.PI / 4, near: number = 0.001, far: number = 1000) {
+export function calculateProj(aspectRatio: number, fov: number = Math.PI / 2, near: number = 0.001, far: number = 1000) {
   return m.mat4.perspective(fov, aspectRatio, near, far, d.mat4x4f());
 }
 

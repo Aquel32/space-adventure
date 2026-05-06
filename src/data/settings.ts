@@ -64,7 +64,7 @@ export function SetAttachedBody(newIndex: number, moveCamera: boolean = true) {
     document.querySelector(".ab")!.setAttribute("value", `${newIndex}`);
 }
 
-export const SPHERE_DIVISIONS = 7;
+export const SPHERE_DIVISIONS = 4;
 
 export let DEPTH_BIAS = 0.1;
 export function SetDepthBias(newDepthBias: number) {

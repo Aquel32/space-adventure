@@ -6,7 +6,7 @@ import { perlin2d, perlin3d, randf, randomGeneratorSlot, XOROSHIRO64STARSTAR } f
 import { SPHERE_DIVISIONS } from "./data/settings";
 
 export let strength = 0.3;
-let epsilon = 0.01;
+export let epsilon = 0.01;
 
 export function SetStrength(newStrength: number) {
   strength = newStrength;

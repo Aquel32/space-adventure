@@ -183,8 +183,10 @@ export function setupFirstPersonCamera(
     runCallback();
   };
 
+  const speed = () => moveSpeed;
+
   runCallback();
-  return { state: cameraState, cleanupCamera, updatePosition, setPosition, setUp, rotateCameraByAngle };
+  return { state: cameraState, cleanupCamera, updatePosition, setPosition, setUp, rotateCameraByAngle, speed };
 }
 
 export function calculateView(position: d.v3f, target: d.v3f, up: d.v3f) {

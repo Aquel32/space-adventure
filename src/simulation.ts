@@ -1,6 +1,6 @@
 import tgpu, { std, d, type TgpuRoot, type TgpuUniform, type TgpuBuffer } from "typegpu";
 import { BODY_COUNT_CONST, CelestianBody } from "./data/simulation-data";
-import { GRAVITY_MULTIPLIER, ORBIT_PREDICTION_STEPS, ORBIT_PREDICTION_STEPS_CONST, SIMULATION_SPEED } from "./data/settings";
+import { ATTACHED_BODY_INDEX, GRAVITY_MULTIPLIER, ORBIT_PREDICTION_STEPS, ORBIT_PREDICTION_STEPS_CONST, SIMULATION_SPEED } from "./data/settings";
 import type { Camera } from "./setup-first-person-camera";
 import * as m from "wgpu-matrix";
 
@@ -184,10 +184,54 @@ export function PrepareSimulation(
         bodiesRotationMatriciesBuffer.write(rotationMatricesArray);
     }
 
+    function pullTowardsAttachedBody(
+        positionsArray: Float32Array<ArrayBuffer>,
+        camera: {
+            state: {
+                pos: d.v3f;
+                yaw: number;
+                pitch: number;
+                bodyMatrix: d.m4x4f;
+            };
+            cleanupCamera: () => void;
+            updatePosition: () => void;
+            setPosition: (newPosition: d.v3f) => void;
+            setUp: (newUp: d.v3f) => void;
+            rotateCameraByAngle: (angle: number, upVector?: d.v3f) => void;
+
+        },
+        collisionInfo: {
+            collides: boolean;
+            normal: d.v3f;
+            surfaceHeight: number;
+            distance: number;
+        }
+    ) {
+        if (ATTACHED_BODY_INDEX === -1) return;
+
+        const attachedBodyPosition = d.vec3f(
+            positionsArray[ATTACHED_BODY_INDEX * 3],
+            positionsArray[ATTACHED_BODY_INDEX * 3 + 1],
+            positionsArray[ATTACHED_BODY_INDEX * 3 + 2]
+        );
+
+        const direction = attachedBodyPosition.sub(camera.state.pos);
+
+        if (collisionInfo.distance - collisionInfo.surfaceHeight < 0.01) {
+            return;
+        }
+
+        const directionToBody = std.normalize(direction);
+        const pullStrength = 0.001;
+        const newCameraPosition = camera.state.pos.add(directionToBody.mul(pullStrength));
+        camera.setPosition(newCameraPosition);
+    }
+
     return {
         simulateGravity,
         simulateRotation,
         predictOrbits,
         renderOrbits,
+        pullTowardsAttachedBody,
     }
 }

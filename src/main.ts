@@ -440,18 +440,15 @@ function render() {
   camera.updatePosition();
 
   findClosestBody();
-
   const collisionInfo = checkForCollision();
+
+  simulation.pullTowardsAttachedBody(positionsArray, camera, collisionInfo);
 
   simulation.simulateGravity(positionsArray, velocitiesArray, bodies);
   simulation.simulateRotation();
 
   bodiesPositionsBuffer.write(positionsArray);
   bodiesVelocitiesBuffer.write(velocitiesArray);
-
-  // if (collisionInfo.collides) {
-  //   camera.setPosition(camera.state.pos.add(collisionInfo.normal.mul(collisionInfo.surfaceHeight - collisionInfo.distance + 0.01)));
-  // }
 
   if (collisionInfo.distance !== -1 && collisionInfo.distance < bodies[ATTACHED_BODY_INDEX].radius + 2) {
     camera.setUp(collisionInfo.normal);
@@ -461,6 +458,11 @@ function render() {
   }
 
   moveCameraWithAttachedObjectVelocity(collisionInfo);
+
+  if (collisionInfo.collides) {
+    const upVector = camera.state.bodyMatrix.columns[1].xyz;
+    camera.setPosition(camera.state.pos.add(upVector.mul(camera.speed())));
+  }
 
   if (frame % (ORBIT_PREDICTION_STEPS / 2) === 0) {
     simulation.predictOrbits(positionsArray, velocitiesArray, bodies);

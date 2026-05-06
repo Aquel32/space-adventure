@@ -47,16 +47,21 @@ export const ORBIT_PREDICTION_STEPS = 1000;
 export const ORBIT_PREDICTION_STEPS_CONST = tgpu.const(d.i32, ORBIT_PREDICTION_STEPS);
 
 export let ATTACHED_BODY_INDEX = -1;
-export function SetAttachedBody(newIndex: number) {
-    if (newIndex == -1) {
+export function SetAttachedBody(newIndex: number, moveCamera: boolean = true) {
+
+    if (newIndex < 0 || newIndex >= INITIAL_BODIES.length || newIndex === -1) {
         ATTACHED_BODY_INDEX = -1;
+        document.querySelector(".ab")!.setAttribute("value", "-1");
         return;
     }
 
-    if (newIndex < 0 || newIndex >= INITIAL_BODIES.length) return;
-
     ATTACHED_BODY_INDEX = newIndex;
-    moveCameraToAttachedObject();
+
+    if (moveCamera) {
+        moveCameraToAttachedObject();
+    }
+
+    document.querySelector(".ab")!.setAttribute("value", `${newIndex}`);
 }
 
 export const SPHERE_DIVISIONS = 7;

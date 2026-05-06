@@ -67,7 +67,7 @@ export function setupFirstPersonCamera(
   function setUp(newUp: d.v3f) {
     const lastUp = cameraState.bodyMatrix.columns[1].xyz;
 
-    if (std.abs(std.dot(lastUp, newUp)) > 0.999) {
+    if (std.abs(std.dot(lastUp, newUp)) > 0.999 && !std.allEq(newUp, d.vec3f(0, 1, 0))) {
       // handle going head first towards a planet
       return;
     }

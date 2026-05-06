@@ -416,8 +416,30 @@ function checkForCollision() {
   }
 }
 
+function findClosestBody() {
+  let closestBodyIndex = ATTACHED_BODY_INDEX;
+  let smallestDistance = Infinity;
+  bodies.forEach((body, i) => {
+    const bodyPos = d.vec3f(
+      positionsArray[i * 3],
+      positionsArray[i * 3 + 1],
+      positionsArray[i * 3 + 2],
+    );
+
+    const distance = std.length(camera.state.pos.sub(bodyPos));
+    if (distance < body.radius + 10 && distance < smallestDistance) {
+      smallestDistance = distance;
+      closestBodyIndex = i;
+    }
+  });
+
+  SetAttachedBody(closestBodyIndex, false);
+}
+
 function render() {
   camera.updatePosition();
+
+  findClosestBody();
 
   const collisionInfo = checkForCollision();
 

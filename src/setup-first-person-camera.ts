@@ -7,6 +7,7 @@ export const Camera = d.struct({
   projection: d.mat4x4f,
   viewInverse: d.mat4x4f,
   projectionInverse: d.mat4x4f,
+  forward: d.vec3f,
 });
 
 export interface CameraOptions {
@@ -48,6 +49,7 @@ export function setupFirstPersonCamera(
     const pitch = cameraState.pitch;
 
     const headMatrix = m.mat4.axisRotate(cameraState.bodyMatrix, d.vec3f(1, 0, 0), pitch, d.mat4x4f());
+    const forward = headMatrix.columns[2].xyz;
 
     const translationMatrix = m.mat4.translation(position, d.mat4x4f());
     const viewInverse = m.mat4.mul(translationMatrix, headMatrix, d.mat4x4f());
@@ -60,6 +62,7 @@ export function setupFirstPersonCamera(
         projection,
         viewInverse: viewInverse,
         projectionInverse: invertMat(projection),
+        forward
       }),
     );
   }

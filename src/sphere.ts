@@ -134,7 +134,7 @@ export function generateSphere(root: TgpuRoot, perlinOffset: number, isSphere: n
   const createSphereComputePipeline = root.with(randomGeneratorSlot, XOROSHIRO64STARSTAR).createGuardedComputePipeline((x: number, y: number) => {
     "use gpu";
 
-    const divisions = sphereComputeLayout.$.divisions;
+    const divisions = d.f32(sphereComputeLayout.$.divisions);
     const directionIndex = sphereComputeLayout.$.currentDirection;
     const direction = cubeDirections.$[directionIndex];
     const index = (directionIndex * 12 * d.u32(4 ** divisions)) + (y * d.u32(2 ** divisions) * 12) + (x * 12);

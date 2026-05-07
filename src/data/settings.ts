@@ -75,3 +75,13 @@ export let NORMAL_OFFSET = 0.6;
 export function SetNormalOffset(newNormalOffset: number) {
     NORMAL_OFFSET = newNormalOffset;
 }
+
+export let ATMOSPHERE_STEP_COUNT = 10;
+export function SetAtmosphereStepCount(newAtmosphereStepCount: number) {
+    ATMOSPHERE_STEP_COUNT = newAtmosphereStepCount;
+}
+
+export let ATMOSPHERE_DENSITY_FALLOFF = 0.8;
+export function SetAtmosphereDensityFalloff(newAtmosphereDensityFalloff: number) {
+    ATMOSPHERE_DENSITY_FALLOFF = newAtmosphereDensityFalloff;
+}

@@ -1,4 +1,4 @@
-import { DEBUG_NORMALS, DEBUG_SHADOWS, DEPTH_BIAS, GAUSIAN_ITERATIONS, GRAVITY_MULTIPLIER, NORMAL_OFFSET, PIXEL_SCALE, RENDER_ORBITS, SetAttachedBody, SetDebugNormals, SetDebugShadows, SetDepthBias, SetGausianIterations, SetGravityMultiplier, SetNormalOffset, SetPixelScale, SetRenderOrbits, SetShowDepthCube, SetSimulationSpeed, SHOW_DEPTH_CUBE, SIMULATION_SPEED } from "./data/settings";
+import { ATMOSPHERE_DENSITY_FALLOFF, ATMOSPHERE_STEP_COUNT, DEBUG_NORMALS, DEBUG_SHADOWS, DEPTH_BIAS, GAUSIAN_ITERATIONS, GRAVITY_MULTIPLIER, NORMAL_OFFSET, PIXEL_SCALE, RENDER_ORBITS, SetAtmosphereStepCount, SetAtmosphereDensityFalloff, SetAttachedBody, SetDebugNormals, SetDebugShadows, SetDepthBias, SetGausianIterations, SetGravityMultiplier, SetNormalOffset, SetPixelScale, SetRenderOrbits, SetShowDepthCube, SetSimulationSpeed, SHOW_DEPTH_CUBE, SIMULATION_SPEED } from "./data/settings";
 import { INITIAL_BODIES } from "./data/simulation-data";
 import { ReloadSettings, SetUpBodiesRenderData } from "./main";
 import { SetEpsilon, SetStrength, strength } from "./sphere";
@@ -27,6 +27,9 @@ export function PrepareUI() {
           <label>Depth Bias: <input name="depth-bias" type="number" class="db" value="${DEPTH_BIAS}" /></label>
            <label>Normal Offset: <input name="normal-offset" type="number" class="no" value="${NORMAL_OFFSET}" /></label>
           </div>
+          <p>atmoshere</p>
+          <label>Density Falloff: <input name="atmosphere-density-falloff" type="number" class="adf" value="${ATMOSPHERE_DENSITY_FALLOFF}" /></label>
+          <label>Step Count: <input name="atmosphere-step-count" type="number" class="asc" value="${ATMOSPHERE_STEP_COUNT}" /></label>
         <div class="body-controls">
 
         </div>
@@ -118,6 +121,16 @@ export function PrepareUI() {
     document.querySelector(".no")!.addEventListener("change", (e) => {
       const newNormalOffset = parseFloat((e.target as HTMLInputElement).value);
       SetNormalOffset(newNormalOffset);
+    });
+
+    document.querySelector(".adf")!.addEventListener("change", (e) => {
+      const newAtmosphereDensityFalloff = parseFloat((e.target as HTMLInputElement).value);
+      SetAtmosphereDensityFalloff(newAtmosphereDensityFalloff);
+    });
+
+    document.querySelector(".asc")!.addEventListener("change", (e) => {
+      const newAtmosphereStepCount = parseFloat((e.target as HTMLInputElement).value);
+      SetAtmosphereStepCount(newAtmosphereStepCount);
     });
 
     document.querySelectorAll(".body").forEach((control, i) => {

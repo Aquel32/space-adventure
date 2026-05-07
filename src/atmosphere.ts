@@ -1,0 +1,232 @@
+import { common, d, std, tgpu, type RenderFlag, type SampledFlag, type StorageFlag, type TgpuBuffer, type TgpuRoot, type TgpuTexture, type TgpuUniform } from "typegpu";
+import type { Camera } from "./setup-first-person-camera";
+import { ATMOSPHERE_DENSITY_FALLOFF, ATMOSPHERE_STEP_COUNT } from "./data/settings";
+import { randf } from "@typegpu/noise";
+
+export function PrepareAtmosphere(
+    root: TgpuRoot,
+    canvas: HTMLCanvasElement,
+    context: GPUCanvasContext,
+    cameraUniform: TgpuUniform<typeof Camera>,
+    bodies: {
+        position: d.v3f;
+        radius: number;
+        colors: {
+            color: d.v4f;
+            height: number;
+        }[];
+        velocity: d.v3f;
+        mass: number;
+        isSphere: number;
+        rotationSpeed: number;
+    }[],
+    bodiesUniform: TgpuUniform<d.WgslArray<d.WgslStruct<{
+        position: d.Vec3f;
+        radius: d.F32;
+        colors: d.WgslArray<d.WgslStruct<{
+            color: d.Vec4f;
+            height: d.F32;
+        }>>;
+        velocity: d.Vec3f;
+        mass: d.F32;
+        isSphere: d.U32;
+    }>>>,
+    bodiesPositionsBuffer: TgpuBuffer<d.WgslArray<d.F32>> & StorageFlag,
+    depthTexture: TgpuTexture<{
+        size: [number, number, 1];
+        format: "depth24plus";
+    }> & SampledFlag,
+    colorTexture: TgpuTexture<{
+        size: [number, number, 1];
+        format: "rgba8unorm";
+    }> & SampledFlag & RenderFlag
+) {
+    const atmosphereRenderLayout = tgpu.bindGroupLayout({
+        bodiesPositionsBuffer: { storage: d.arrayOf(d.f32), access: "readonly" },
+        currentBodyIndex: { uniform: d.i32 },
+        texture: { texture: d.texture2d() },
+        sampler: { sampler: "non-filtering" },
+        depthTexture: { texture: d.textureDepth2d() },
+        colorTexture: { texture: d.texture2d() },
+    });
+
+    const falloffUniform = root.createUniform(d.f32);
+    falloffUniform.write(ATMOSPHERE_DENSITY_FALLOFF);
+    const stepCountUniform = root.createUniform(d.u32);
+    stepCountUniform.write(ATMOSPHERE_STEP_COUNT);
+
+    const sampler = root.createSampler({
+        magFilter: "nearest",
+        minFilter: "nearest",
+    });
+
+    const mainTexture = root
+        .createTexture({
+            size: [canvas.width, canvas.height, 1],
+            format: "rgba8unorm",
+        })
+        .$usage("render", "sampled");
+
+    const currentBodyIndexBuffer = root.createBuffer(d.i32).$usage("uniform");
+
+    const atmosphereBindGroup = root.createBindGroup(atmosphereRenderLayout, {
+        bodiesPositionsBuffer,
+        texture: mainTexture,
+        sampler,
+        currentBodyIndex: currentBodyIndexBuffer,
+        depthTexture,
+        colorTexture,
+    });
+
+    function raySphereIntersect(rayOrigin: d.v3f, rayDirection: d.v3f, sphereCenter: d.v3f, sphereRadius: number) {
+        "use gpu";
+        const offset = rayOrigin - sphereCenter;
+
+        const a = d.f32(1);
+        const b = 2 * std.dot(offset, rayDirection);
+        const c = std.dot(offset, offset) - sphereRadius * sphereRadius;
+        const discriminant = b * b - 4 * a * c;
+
+        if (discriminant > 0) {
+            const s = std.sqrt(discriminant);
+            const dstToSphereNear = std.max(0, (-b - s) / (2 * a));
+            const dstToSphereFar = (-b + s) / (2 * a);
+
+            if (dstToSphereFar >= 0) {
+                return d.vec2f(dstToSphereNear, dstToSphereFar - dstToSphereNear);
+            }
+        }
+
+        return d.vec2f(12938103293, 0);
+    }
+
+    function LinearEyeDepth(depth: number) {
+        "use gpu";
+        const near = 0.001;
+        const far = d.f32(1000);
+
+        return near * far / (far - depth * (far - near));
+    }
+
+    function densityAtPoint(point: d.v3f, planetCentre: d.v3f, atmosphereRadius: number, planetRadius: number) {
+        "use gpu";
+        const densityFalloff = falloffUniform.$;
+
+        const height = std.length(point - planetCentre) - planetRadius; //height above suface
+        const height01 = std.saturate(height / (atmosphereRadius - planetRadius)); // 0 at surface, 1 at top of atmosphere
+        const density = std.exp(-height01 * densityFalloff) * (1 - height01);
+
+        return density;
+    }
+
+    function opticalDepth(rayOrigin: d.v3f, rayDirection: d.v3f, rayLength: number, planetCentre: d.v3f, atmosphereRadius: number, planetRadius: number) {
+        "use gpu";
+        let densitySamplePoint = d.vec3f(rayOrigin);
+        const stepCount = stepCountUniform.$;
+        const stepSize = rayLength / (d.f32(stepCount) - 1);
+
+        let opticalDepth = d.f32(0);
+
+        for (let i = d.u32(0); i < stepCount; i++) {
+            const localDensity = densityAtPoint(densitySamplePoint, planetCentre, atmosphereRadius, planetRadius);
+            opticalDepth += localDensity * stepSize;
+            densitySamplePoint += rayDirection * stepSize;
+        }
+        return opticalDepth;
+    }
+
+    function calculateLight(rayOrigin: d.v3f, rayDirection: d.v3f, rayLength: number, planetCentre: d.v3f, atmosphereRadius: number, planetRadius: number) {
+        "use gpu";
+        const stepCount = stepCountUniform.$;
+        let inScatterPoint = d.vec3f(rayOrigin);
+        const stepSize = rayLength / (d.f32(stepCount) - 1);
+
+        let lightAmount = d.f32(0);
+
+        const sunPosition = d.vec3f(
+            atmosphereRenderLayout.$.bodiesPositionsBuffer[0 * 3 + 0],
+            atmosphereRenderLayout.$.bodiesPositionsBuffer[0 * 3 + 1],
+            atmosphereRenderLayout.$.bodiesPositionsBuffer[0 * 3 + 2],
+        );
+
+        for (let i = d.u32(0); i < stepCount; i++) {
+            const toSunDirection = std.normalize(sunPosition - inScatterPoint);
+
+            const sunRayLength = raySphereIntersect(inScatterPoint, toSunDirection, planetCentre, atmosphereRadius).y;
+            const sunRayOpticalDepth = opticalDepth(inScatterPoint, toSunDirection, sunRayLength, planetCentre, atmosphereRadius, planetRadius);
+            const viewRayOpticalDepth = opticalDepth(inScatterPoint, rayDirection * -1, stepSize * d.f32(i), planetCentre, atmosphereRadius, planetRadius);
+            const transmittance = std.exp((sunRayOpticalDepth + viewRayOpticalDepth));
+            const localDensity = densityAtPoint(inScatterPoint, planetCentre, atmosphereRadius, planetRadius);
+
+            lightAmount += localDensity * transmittance * stepSize;
+            inScatterPoint += rayDirection * stepSize;
+        }
+
+        return lightAmount;
+    }
+
+    const atmosphereRenderPipeline = root.createRenderPipeline({
+        vertex: common.fullScreenTriangle,
+        fragment: ({ uv }) => {
+            "use gpu";
+
+            const rayOrigin = cameraUniform.$.pos.xyz;
+            const originalColor = d.vec4f(std.textureSample(atmosphereRenderLayout.$.colorTexture, atmosphereRenderLayout.$.sampler, uv).xyz, 1);
+
+            const ndc = d.vec4f(
+                uv.x * 2.0 - 1.0,
+                1.0 - uv.y * 2.0,
+                1.0,
+                1.0,
+            );
+
+            const viewPos = cameraUniform.$.projectionInverse.mul(ndc);
+            const viewDir = std.normalize(viewPos.xyz / viewPos.w);
+
+            const viewVector = cameraUniform.$.viewInverse.mul(d.vec4f(viewDir, 0.0)).xyz;
+            const rayDirection = std.normalize(viewVector);
+
+            let depth = std.textureSample(atmosphereRenderLayout.$.depthTexture, atmosphereRenderLayout.$.sampler, uv);
+            depth = LinearEyeDepth(depth) * std.length(viewVector);
+
+            const planetCentre = d.vec3f(
+                atmosphereRenderLayout.$.bodiesPositionsBuffer[atmosphereRenderLayout.$.currentBodyIndex * 3 + 0],
+                atmosphereRenderLayout.$.bodiesPositionsBuffer[atmosphereRenderLayout.$.currentBodyIndex * 3 + 1],
+                atmosphereRenderLayout.$.bodiesPositionsBuffer[atmosphereRenderLayout.$.currentBodyIndex * 3 + 2],
+            );
+            const planetRadius = bodiesUniform.$[atmosphereRenderLayout.$.currentBodyIndex].radius;
+            const atmosphereRadius = planetRadius + 0.2;
+
+            const hitInfo = raySphereIntersect(rayOrigin, rayDirection, planetCentre, atmosphereRadius);
+
+            const dstToAtmosphere = hitInfo.x;
+            const dstThrough = std.min(hitInfo.y, depth - dstToAtmosphere);
+
+            if (dstThrough > 0) {
+                const pointInAtmosphere = rayOrigin + rayDirection * dstToAtmosphere;
+                const light = calculateLight(pointInAtmosphere, rayDirection, dstThrough, planetCentre, atmosphereRadius, planetRadius);
+                return originalColor * (1 - light) + light
+            }
+
+            return originalColor;
+        },
+    });
+
+    function reloadSettings() {
+        falloffUniform.write(ATMOSPHERE_DENSITY_FALLOFF);
+        stepCountUniform.write(ATMOSPHERE_STEP_COUNT);
+    }
+
+    function render() {
+        currentBodyIndexBuffer.write(3); // TODO: loop through bodies
+        atmosphereRenderPipeline
+            .withColorAttachment({ view: context })
+            .with(atmosphereBindGroup)
+            .draw(3);
+    }
+
+    return {
+        render,
+        reloadSettings
+    }
+}

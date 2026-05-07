@@ -28,6 +28,7 @@ import { writeSoA } from "typegpu/common";
 import { PrepareShadows } from "./shadows";
 import { sample } from "./cpuPerlin";
 import * as m from "wgpu-matrix";
+import { PrepareAtmosphere } from "./atmosphere";
 
 document.querySelector<HTMLDivElement>("#app")!.innerHTML = `
 <main>
@@ -94,7 +95,7 @@ const mainBindGroup = root.createBindGroup(mainBindGroupLayout, {
   rotationMatricies: bodiesRotationMatriciesBuffer,
 });
 
-const currentBodyIndexUniform = root.createUniform(d.i32);
+const currentBodyIndexUniform = root.createUniform(d.u32);
 
 const bodiesRenderData: {
   verticies: TgpuBuffer<d.WgslArray<d.U32>> & StorageFlag & VertexFlag;
@@ -129,7 +130,7 @@ const depthTexture = root
     size: [canvas.width, canvas.height, 1],
     format: "depth24plus",
   })
-  .$usage("render");
+  .$usage("render", "sampled");
 
 const mainRenderPipeline = root.createRenderPipeline({
   attribs: { inVertex: positionVertexLayout.attrib, inNormal: normalVertexLayout.attrib },
@@ -142,8 +143,8 @@ const mainRenderPipeline = root.createRenderPipeline({
       emits: d.interpolate("flat", d.i32),
       groundColor: d.vec4f,
       normal: d.vec3f,
-      vid: d.interpolate("flat", d.i32),
-      bodyId: d.interpolate("flat", d.i32),
+      vid: d.interpolate("flat", d.u32),
+      bodyId: d.interpolate("flat", d.u32),
     },
   })(({ vid, inVertex, inNormal }) => {
     "use gpu";
@@ -248,6 +249,7 @@ const mainRenderPipeline = root.createRenderPipeline({
     depthCompare: "less",
   },
   targets: {
+    color: { format: "rgba8unorm" },
     emission: { format: "rgba8unorm" },
   },
 });
@@ -353,21 +355,6 @@ function moveCameraWithAttachedObjectVelocity(collisionInfo: {
   camera.state.bodyMatrix = attachedBodyRotationMatrix.mul(camera.state.bodyMatrix);
 }
 
-const simulation = PrepareSimulation(root, canvas, context, cameraUniform, bodies, rotationMatricesArray, bodiesRotationMatriciesBuffer, currentRotationArray);
-const shadows = PrepareShadows(root, canvas, context, positionVertexLayout, bodiesRenderData, cameraUniform, bodiesUniform, mainBindGroupLayout, mainBindGroup, positionsArray, 0);
-const bloomEffect = PrepareBloom(root, canvas, context, pixelScaleUniform);
-
-export function ReloadSettings() {
-  debugShadowsUniform.write(DEBUG_SHADOWS ? 1 : 0);
-  normalOffsetUniform.write(NORMAL_OFFSET);
-  shadows.reloadSettings();
-}
-
-const shadowsBindGroup = root.createBindGroup(shadowsLayout, {
-  sampler: shadows.sampler,
-  texture: shadows.shadowMap,
-});
-
 function checkForCollision() {
   "use gpu";
 
@@ -453,13 +440,37 @@ function findClosestBody() {
   SetAttachedBody(closestBodyIndex, false);
 }
 
+const mainTexture = root.createTexture({
+  size: [canvas.width, canvas.height, 1],
+  format: "rgba8unorm",
+})
+  .$usage("render", "sampled");
+
+
+const simulation = PrepareSimulation(root, canvas, context, cameraUniform, bodies, rotationMatricesArray, bodiesRotationMatriciesBuffer, currentRotationArray);
+const shadows = PrepareShadows(root, canvas, context, positionVertexLayout, bodiesRenderData, cameraUniform, bodiesUniform, mainBindGroupLayout, mainBindGroup, positionsArray, 0);
+const bloomEffect = PrepareBloom(root, canvas, context, pixelScaleUniform);
+const atmosphere = PrepareAtmosphere(root, canvas, context, cameraUniform, bodies, bodiesUniform, bodiesPositionsBuffer, depthTexture, mainTexture);
+
+const shadowsBindGroup = root.createBindGroup(shadowsLayout, {
+  sampler: shadows.sampler,
+  texture: shadows.shadowMap,
+});
+
+export function ReloadSettings() {
+  debugShadowsUniform.write(DEBUG_SHADOWS ? 1 : 0);
+  normalOffsetUniform.write(NORMAL_OFFSET);
+  shadows.reloadSettings();
+  atmosphere.reloadSettings();
+}
+
 function render() {
   camera.updatePosition();
 
   findClosestBody();
   const collisionInfo = checkForCollision();
 
-  simulation.pullTowardsAttachedBody(positionsArray, camera, collisionInfo);
+  // simulation.pullTowardsAttachedBody(positionsArray, camera, collisionInfo);
 
   simulation.simulateGravity(positionsArray, velocitiesArray, bodies);
   simulation.simulateRotation();
@@ -491,7 +502,7 @@ function render() {
     mainRenderPipeline
       .withColorAttachment({
         color: {
-          view: context,
+          view: mainTexture,
           loadOp: i === 0 ? "clear" : "load",
           clearValue: { r: 0, g: 0, b: 0, a: 0 },
         },
@@ -510,35 +521,40 @@ function render() {
       .draw(sphere.getVertexAmount(), 1);
   });
 
-  bloomEffect.applyGausianBlur();
-  bloomEffect.render();
 
-  if (RENDER_ORBITS) {
-    simulation.renderOrbits(bodies);
-  }
+  atmosphere.render();
 
-  if (DEBUG_NORMALS) {
-    bodiesRenderData.forEach((item, i) => {
-      currentBodyIndexUniform.write(i);
-      normalDebugPipeline
-        .withColorAttachment({ view: context, loadOp: "load", clearValue: { r: 0, g: 0, b: 0, a: 1 } })
-        .withDepthStencilAttachment({
-          view: depthTexture,
-          depthLoadOp: "load",
-          depthClearValue: 1,
-          depthStoreOp: "store",
-        })
-        .with(mainBindGroup)
-        .with(normalDebugVertexLayout, item.trickDebugNormalVerticies)
-        .draw(sphere.getVertexAmount() * 2, 1);
-    });
-  }
+  // bloomEffect.applyGausianBlur();
+  // bloomEffect.render();
 
-  shadows.renderShadowMaps();
+  // if (RENDER_ORBITS) {
+  //   simulation.renderOrbits(bodies);
+  // }
+
+  // if (DEBUG_NORMALS) {
+  //   bodiesRenderData.forEach((item, i) => {
+  //     currentBodyIndexUniform.write(i);
+  //     normalDebugPipeline
+  //       .withColorAttachment({ view: context, loadOp: "load", clearValue: { r: 0, g: 0, b: 0, a: 1 } })
+  //       .withDepthStencilAttachment({
+  //         view: depthTexture,
+  //         depthLoadOp: "load",
+  //         depthClearValue: 1,
+  //         depthStoreOp: "store",
+  //       })
+  //       .with(mainBindGroup)
+  //       .with(normalDebugVertexLayout, item.trickDebugNormalVerticies)
+  //       .draw(sphere.getVertexAmount() * 2, 1);
+  //   });
+  // }
+
+  // shadows.renderShadowMaps();
+
 
   if (SHOW_DEPTH_CUBE) {
     shadows.debugRender();
   }
+
 
   frame++;
   requestAnimationFrame(render);

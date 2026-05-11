@@ -104,6 +104,14 @@ const SurfaceColorData = d.struct({
   height: d.f32,
 });
 
+const AtmosphereSettings = d.struct({
+  enabled: d.u32,
+  atmosphereRadius: d.f32,
+  scatteringStrength: d.f32,
+  densityFalloff: d.f32,
+  wavelengths: d.vec3f,
+})
+
 export const CelestianBody = d.struct({
   position: d.vec3f,
   radius: d.f32,
@@ -112,6 +120,7 @@ export const CelestianBody = d.struct({
   mass: d.f32,
   isSphere: d.u32,
   rotationSpeed: d.f32,
+  atmosphere: AtmosphereSettings,
 });
 
 export const INITIAL_BODIES = d.arrayOf(
@@ -131,6 +140,13 @@ export const INITIAL_BODIES = d.arrayOf(
     velocity: SUN_INITIAL_VELOCITY,
     mass: SUN_MASS,
     isSphere: d.u32(1),
+    atmosphere: {
+      enabled: d.u32(0),
+      atmosphereRadius: d.f32(0),
+      scatteringStrength: d.f32(0),
+      densityFalloff: d.f32(0),
+      wavelengths: d.vec3f(0, 0, 0),
+    },
   },
 
   {
@@ -146,6 +162,13 @@ export const INITIAL_BODIES = d.arrayOf(
     velocity: MERCURY_INITIAL_VELOCITY,
     mass: MERCURY_MASS,
     isSphere: d.u32(0),
+    atmosphere: {
+      enabled: d.u32(0),
+      atmosphereRadius: d.f32(0),
+      scatteringStrength: d.f32(0),
+      densityFalloff: d.f32(0),
+      wavelengths: d.vec3f(0, 0, 0),
+    },
   }, // Mercury
   {
     position: d.vec3f(72.3, 0, 0),
@@ -160,6 +183,13 @@ export const INITIAL_BODIES = d.arrayOf(
     velocity: VENUS_INITIAL_VELOCITY,
     mass: VENUS_MASS,
     isSphere: d.u32(0),
+    atmosphere: {
+      enabled: d.u32(1),
+      atmosphereRadius: VENUS_RENDER_RADIUS + 0.15,
+      scatteringStrength: d.f32(25),
+      densityFalloff: d.f32(2),
+      wavelengths: d.vec3f(750, 550, 450),
+    },
   }, // Venus
   {
     position: d.vec3f(EARTH_DISTANCE, 0, 0),
@@ -174,6 +204,13 @@ export const INITIAL_BODIES = d.arrayOf(
     velocity: EARTH_INITIAL_VELOCITY,
     mass: EARTH_MASS,
     isSphere: d.u32(0),
+    atmosphere: {
+      enabled: d.u32(1),
+      atmosphereRadius: EARTH_BODY_RENDER_RADIUS + 0.1,
+      scatteringStrength: d.f32(10),
+      densityFalloff: d.f32(4),
+      wavelengths: d.vec3f(700, 530, 440),
+    },
   }, // Earth
   {
     position: d.vec3f(EARTH_DISTANCE, MOON_ORBIT_RADIUS, 0),
@@ -188,6 +225,13 @@ export const INITIAL_BODIES = d.arrayOf(
     velocity: MOON_INITIAL_VELOCITY,
     mass: MOON_MASS,
     isSphere: d.u32(0),
+    atmosphere: {
+      enabled: d.u32(0),
+      atmosphereRadius: d.f32(0),
+      scatteringStrength: d.f32(0),
+      densityFalloff: d.f32(0),
+      wavelengths: d.vec3f(0, 0, 0),
+    },
   }, // Moon
   {
     position: d.vec3f(152.4, 0, 0),
@@ -202,6 +246,13 @@ export const INITIAL_BODIES = d.arrayOf(
     velocity: MARS_INITIAL_VELOCITY,
     mass: MARS_MASS,
     isSphere: d.u32(0),
+    atmosphere: {
+      enabled: d.u32(1),
+      atmosphereRadius: 0.1 + 0.05,
+      scatteringStrength: d.f32(6),
+      densityFalloff: d.f32(7),
+      wavelengths: d.vec3f(470, 600, 800),
+    },
   }, // Mars
   {
     position: d.vec3f(520.3, 0, 0),
@@ -216,6 +267,13 @@ export const INITIAL_BODIES = d.arrayOf(
     velocity: JUPITER_INITIAL_VELOCITY,
     mass: JUPITER_MASS,
     isSphere: d.u32(0),
+    atmosphere: {
+      enabled: d.u32(1),
+      atmosphereRadius: JUPITER_RENDER_RADIUS + 0.12,
+      scatteringStrength: d.f32(18),
+      densityFalloff: d.f32(3),
+      wavelengths: d.vec3f(710, 520, 450),
+    },
   }, // Jupiter
   {
     position: d.vec3f(958.2, 0, 0),
@@ -229,7 +287,13 @@ export const INITIAL_BODIES = d.arrayOf(
     velocity: SATURN_INITIAL_VELOCITY,
     mass: SATURN_MASS,
     isSphere: d.u32(0),
-
+    atmosphere: {
+      enabled: d.u32(1),
+      atmosphereRadius: SATURN_RENDER_RADIUS + 0.1,
+      scatteringStrength: d.f32(16),
+      densityFalloff: d.f32(3),
+      wavelengths: d.vec3f(700, 530, 450),
+    },
   }, // Saturn
   {
     position: d.vec3f(1918, 0, 0),
@@ -243,6 +307,13 @@ export const INITIAL_BODIES = d.arrayOf(
     velocity: URANUS_INITIAL_VELOCITY,
     mass: URANUS_MASS,
     isSphere: d.u32(0),
+    atmosphere: {
+      enabled: d.u32(1),
+      atmosphereRadius: URANUS_RENDER_RADIUS + 0.1,
+      scatteringStrength: d.f32(14),
+      densityFalloff: d.f32(3),
+      wavelengths: d.vec3f(480, 510, 620),
+    },
   }, // Uranus
   {
     position: d.vec3f(3007, 0, 0),
@@ -256,7 +327,13 @@ export const INITIAL_BODIES = d.arrayOf(
     velocity: NEPTUNE_INITIAL_VELOCITY,
     mass: NEPTUNE_MASS,
     isSphere: d.u32(0),
-
+    atmosphere: {
+      enabled: d.u32(1),
+      atmosphereRadius: NEPTUNE_RENDER_RADIUS + 0.1,
+      scatteringStrength: d.f32(15),
+      densityFalloff: d.f32(3),
+      wavelengths: d.vec3f(450, 510, 620),
+    },
   }, // Neptune
 ]);
 export const BODY_COUNT_CONST = tgpu.const(d.i32, INITIAL_BODIES.length);

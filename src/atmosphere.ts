@@ -1,6 +1,6 @@
 import { common, d, std, tgpu, type RenderFlag, type SampledFlag, type StorageFlag, type TgpuBuffer, type TgpuRoot, type TgpuTexture, type TgpuUniform } from "typegpu";
 import type { Camera } from "./setup-first-person-camera";
-import { ATMOSPHERE_DENSITY_FALLOFF, ATMOSPHERE_SCALE, ATMOSPHERE_SCATTERING_STRENGTH, ATMOSPHERE_STEP_COUNT, ATMOSPHERE_WAVELENGTHS } from "./data/settings";
+import { ATMOSPHERE_STEP_COUNT, ATTACHED_BODY_INDEX } from "./data/settings";
 import { randf } from "@typegpu/noise";
 
 export function PrepareAtmosphere(
@@ -19,6 +19,14 @@ export function PrepareAtmosphere(
         mass: number;
         isSphere: number;
         rotationSpeed: number;
+        atmosphere: {
+            enabled: number;
+            atmosphereRadius: number;
+            scatteringStrength: number;
+            densityFalloff: number;
+            wavelengths: d.v3f;
+        };
+
     }[],
     bodiesUniform: TgpuUniform<d.WgslArray<d.WgslStruct<{
         position: d.Vec3f;
@@ -30,6 +38,14 @@ export function PrepareAtmosphere(
         velocity: d.Vec3f;
         mass: d.F32;
         isSphere: d.U32;
+        rotationSpeed: d.F32;
+        atmosphere: d.WgslStruct<{
+            enabled: d.U32;
+            atmosphereRadius: d.F32;
+            scatteringStrength: d.F32;
+            densityFalloff: d.F32;
+            wavelengths: d.Vec3f;
+        }>;
     }>>>,
     bodiesPositionsBuffer: TgpuBuffer<d.WgslArray<d.F32>> & StorageFlag,
     depthTexture: TgpuTexture<{
@@ -55,16 +71,8 @@ export function PrepareAtmosphere(
         currentBodyIndex: { uniform: d.i32 },
     });
 
-    const falloffUniform = root.createUniform(d.f32);
-    falloffUniform.write(ATMOSPHERE_DENSITY_FALLOFF);
     const stepCountUniform = root.createUniform(d.u32);
     stepCountUniform.write(ATMOSPHERE_STEP_COUNT);
-    const scatteringStrengthUniform = root.createUniform(d.f32);
-    scatteringStrengthUniform.write(ATMOSPHERE_SCATTERING_STRENGTH);
-    const wavelengthsUniform = root.createUniform(d.vec3f);
-    wavelengthsUniform.write(ATMOSPHERE_WAVELENGTHS);
-    const scaleUniform = root.createUniform(d.f32);
-    scaleUniform.write(ATMOSPHERE_SCALE);
 
     const sampler = root.createSampler({
         magFilter: "nearest",
@@ -131,7 +139,7 @@ export function PrepareAtmosphere(
 
     function densityAtPoint(point: d.v3f, planetCentre: d.v3f, atmosphereRadius: number, planetRadius: number) {
         "use gpu";
-        const densityFalloff = falloffUniform.$;
+        const densityFalloff = bodiesUniform.$[atmosphereRenderLayout.$.currentBodyIndex].atmosphere.densityFalloff;
 
         const height = std.length(point - planetCentre) - planetRadius; //height above suface
         const height01 = std.saturate(height / (atmosphereRadius - planetRadius)); // 0 at surface, 1 at top of atmosphere
@@ -183,8 +191,8 @@ export function PrepareAtmosphere(
             atmosphereRenderLayout.$.bodiesPositionsBuffer[0 * 3 + 2],
         );
 
-        const scatteringStrength = scatteringStrengthUniform.$;
-        const wavelengths = wavelengthsUniform.$;
+        const scatteringStrength = bodiesUniform.$[atmosphereRenderLayout.$.currentBodyIndex].atmosphere.scatteringStrength;
+        const wavelengths = bodiesUniform.$[atmosphereRenderLayout.$.currentBodyIndex].atmosphere.wavelengths;
         const scatterR = std.pow(600 / wavelengths.x, 4);
         const scatterG = std.pow(600 / wavelengths.y, 4);
         const scatterB = std.pow(600 / wavelengths.z, 4);
@@ -217,6 +225,10 @@ export function PrepareAtmosphere(
             const rayOrigin = cameraUniform.$.pos.xyz;
             const originalColor = d.vec4f(std.textureSample(atmosphereRenderLayout.$.colorTexture, atmosphereRenderLayout.$.sampler, uv).xyz, 1);
 
+            if (bodiesUniform.$[atmosphereRenderLayout.$.currentBodyIndex].atmosphere.enabled === 0) {
+                return originalColor;
+            }
+
             const ndc = d.vec4f(
                 uv.x * 2.0 - 1.0,
                 1.0 - uv.y * 2.0,
@@ -230,7 +242,7 @@ export function PrepareAtmosphere(
             const viewVector = cameraUniform.$.viewInverse.mul(d.vec4f(viewDir, 0.0)).xyz;
             const rayDirection = std.normalize(viewVector);
 
-            let depth = std.textureSample(atmosphereRenderLayout.$.depthTexture, atmosphereRenderLayout.$.sampler, uv);
+            let depth = std.textureSampleLevel(atmosphereRenderLayout.$.depthTexture, atmosphereRenderLayout.$.sampler, uv, 0);
             depth = LinearEyeDepth(depth) * std.length(viewVector);
 
 
@@ -240,7 +252,7 @@ export function PrepareAtmosphere(
                 atmosphereRenderLayout.$.bodiesPositionsBuffer[atmosphereRenderLayout.$.currentBodyIndex * 3 + 2],
             );
             const planetRadius = bodiesUniform.$[atmosphereRenderLayout.$.currentBodyIndex].radius;
-            const atmosphereRadius = planetRadius + (planetRadius * scaleUniform.$);
+            const atmosphereRadius = bodiesUniform.$[atmosphereRenderLayout.$.currentBodyIndex].atmosphere.atmosphereRadius;
 
             const hitInfo = raySphereIntersect(rayOrigin, rayDirection, planetCentre, atmosphereRadius);
 
@@ -282,16 +294,16 @@ export function PrepareAtmosphere(
     }
 
     function reloadSettings() {
-        falloffUniform.write(ATMOSPHERE_DENSITY_FALLOFF);
+        // falloffUniform.write(ATMOSPHERE_DENSITY_FALLOFF);
         stepCountUniform.write(ATMOSPHERE_STEP_COUNT);
-        scatteringStrengthUniform.write(ATMOSPHERE_SCATTERING_STRENGTH);
-        wavelengthsUniform.write(ATMOSPHERE_WAVELENGTHS);
-        scaleUniform.write(ATMOSPHERE_SCALE);
-        bakeOpticalDepth();
+        // scatteringStrengthUniform.write(ATMOSPHERE_SCATTERING_STRENGTH);
+        // wavelengthsUniform.write(ATMOSPHERE_WAVELENGTHS);
+        // scaleUniform.write(ATMOSPHERE_SCALE);
+        // bakeOpticalDepth();
     }
 
     function render() {
-        currentBodyIndexBuffer.write(3); // TODO: loop through bodies
+        currentBodyIndexBuffer.write(ATTACHED_BODY_INDEX);
         atmosphereRenderPipeline
             .withColorAttachment({ view: context })
             .with(atmosphereBindGroup)
@@ -303,7 +315,7 @@ export function PrepareAtmosphere(
         fragment: ({ uv }) => {
             "use gpu";
             const planetRadius = bodiesUniform.$[atmosphereBakeLayout.$.currentBodyIndex].radius;
-            const atmosphereRadius = planetRadius + (planetRadius * scaleUniform.$);
+            const atmosphereRadius = bodiesUniform.$[atmosphereBakeLayout.$.currentBodyIndex].atmosphere.atmosphereRadius;
 
             const height01 = uv.x; // from 0 (surface) to 1 (top of atmosphere)
             const angle = uv.y * d.f32(Math.PI); // from 1 (looking up) to 0 (looking down)
@@ -356,7 +368,7 @@ export function PrepareAtmosphere(
             .draw(3);
     }
 
-    bakeOpticalDepth();
+    // bakeOpticalDepth();
 
     return {
         test,

@@ -461,6 +461,13 @@ const shadowsBindGroup = root.createBindGroup(shadowsLayout, {
 export function ReloadSettings() {
   debugShadowsUniform.write(DEBUG_SHADOWS ? 1 : 0);
   normalOffsetUniform.write(NORMAL_OFFSET);
+  bodiesUniform.write(INITIAL_BODIES);
+
+  for (let i = 0; i < INITIAL_BODIES.length; i++) {
+    bodies[i] = INITIAL_BODIES[i];
+  }
+
+
   shadows.reloadSettings();
   atmosphere.reloadSettings();
 }

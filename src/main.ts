@@ -20,7 +20,7 @@ import tgpu, {
 } from "typegpu";
 import * as sphere from "./sphere";
 import { BODY_COUNT_CONST, CelestianBody, INITIAL_BODIES } from "./data/simulation-data";
-import { ATTACHED_BODY_INDEX, DEBUG_NORMALS, DEBUG_SHADOWS, NORMAL_OFFSET, ORBIT_PREDICTION_STEPS, RENDER_ORBITS, SetAttachedBody, SHOW_DEPTH_CUBE, SIMULATION_SPEED } from "./data/settings";
+import { ATMOSPHERE_SHOW_PREBAKED_DEPTH, ATTACHED_BODY_INDEX, DEBUG_NORMALS, DEBUG_SHADOWS, NORMAL_OFFSET, ORBIT_PREDICTION_STEPS, RENDER_ORBITS, SetAttachedBody, SHOW_DEPTH_CUBE, SIMULATION_SPEED } from "./data/settings";
 import { PrepareBloom } from "./postprocessing/bloom";
 import { bodiesToArrays, getBodyRotationSpeedInAngle, PrepareSimulation } from "./simulation";
 import { PrepareUI } from "./ui-controls";
@@ -32,7 +32,7 @@ import { PrepareAtmosphere } from "./atmosphere";
 
 document.querySelector<HTMLDivElement>("#app")!.innerHTML = `
 <main>
-  <canvas id="canvas" width="2560" height="1440"></canvas>
+  <canvas id="canvas" width="1920" height="1080"></canvas>
   <p id="veloasdasdadadada"></p>
 </main>
 `;
@@ -552,6 +552,10 @@ function render() {
 
   if (SHOW_DEPTH_CUBE) {
     shadows.debugRender();
+  }
+
+  if (ATMOSPHERE_SHOW_PREBAKED_DEPTH) {
+    atmosphere.testRender();
   }
 
   frame++;

@@ -95,3 +95,13 @@ export let ATMOSPHERE_WAVELENGTHS = d.vec3f(700, 530, 440);
 export function SetAtmosphereWavelengths(newAtmosphereWavelengths: [number, number, number]) {
     ATMOSPHERE_WAVELENGTHS = d.vec3f(...newAtmosphereWavelengths);
 }
+
+export let ATMOSPHERE_SCALE = 0.6;
+export function SetAtmosphereScale(newAtmosphereScale: number) {
+    ATMOSPHERE_SCALE = newAtmosphereScale;
+}
+
+export let ATMOSPHERE_SHOW_PREBAKED_DEPTH = false;
+export function SetShowPrebakedDepth(newShowPrebakedDepth: boolean) {
+    ATMOSPHERE_SHOW_PREBAKED_DEPTH = newShowPrebakedDepth;
+}

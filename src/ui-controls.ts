@@ -1,4 +1,4 @@
-import { ATMOSPHERE_DENSITY_FALLOFF, ATMOSPHERE_STEP_COUNT, DEBUG_NORMALS, DEBUG_SHADOWS, DEPTH_BIAS, GAUSIAN_ITERATIONS, GRAVITY_MULTIPLIER, NORMAL_OFFSET, PIXEL_SCALE, RENDER_ORBITS, SetAtmosphereStepCount, SetAtmosphereDensityFalloff, SetAttachedBody, SetDebugNormals, SetDebugShadows, SetDepthBias, SetGausianIterations, SetGravityMultiplier, SetNormalOffset, SetPixelScale, SetRenderOrbits, SetShowDepthCube, SetSimulationSpeed, SHOW_DEPTH_CUBE, SIMULATION_SPEED, ATMOSPHERE_SCATTERING_STRENGTH, SetAtmosphereScatteringStrength, ATMOSPHERE_WAVELENGTHS, SetAtmosphereWavelengths } from "./data/settings";
+import { ATMOSPHERE_DENSITY_FALLOFF, ATMOSPHERE_STEP_COUNT, DEBUG_NORMALS, DEBUG_SHADOWS, DEPTH_BIAS, GAUSIAN_ITERATIONS, GRAVITY_MULTIPLIER, NORMAL_OFFSET, PIXEL_SCALE, RENDER_ORBITS, SetAtmosphereStepCount, SetAtmosphereDensityFalloff, SetAttachedBody, SetDebugNormals, SetDebugShadows, SetDepthBias, SetGausianIterations, SetGravityMultiplier, SetNormalOffset, SetPixelScale, SetRenderOrbits, SetShowDepthCube, SetSimulationSpeed, SHOW_DEPTH_CUBE, SIMULATION_SPEED, ATMOSPHERE_SCATTERING_STRENGTH, SetAtmosphereScatteringStrength, ATMOSPHERE_WAVELENGTHS, SetAtmosphereWavelengths, ATMOSPHERE_SCALE, SetAtmosphereScale, ATMOSPHERE_SHOW_PREBAKED_DEPTH, SetShowPrebakedDepth } from "./data/settings";
 import { INITIAL_BODIES } from "./data/simulation-data";
 import { ReloadSettings, SetUpBodiesRenderData } from "./main";
 import { SetEpsilon, SetStrength, strength } from "./sphere";
@@ -36,31 +36,28 @@ export function PrepareUI() {
                 <label>G: <input name="atmosphere-wavelength-green" type="number" class="awg" value="${ATMOSPHERE_WAVELENGTHS.y}" /></label>
                 <label>B: <input name="atmosphere-wavelength-blue" type="number" class="awb" value="${ATMOSPHERE_WAVELENGTHS.z}" /></label>
               </div>
+              <label>Scale: <input name="atmosphere-scale" type="number" class="ascale" value="${ATMOSPHERE_SCALE}" /></label>
+              <label>Show Prebaked Depth: <input name="show-prebaked-depth" type="checkbox" class="spd" ${ATMOSPHERE_SHOW_PREBAKED_DEPTH ? "checked" : ""} /></label>
            </div>
         <div class="body-controls">
 
         </div>
     <section>`;
 
-  // document.querySelector(".body-controls")!.innerHTML += INITIAL_BODIES.map(
-  //   (body, i) => `
-  //           <div class="body">
-  //               <h2>Body ${i}</h2>
-  //               <label>Mass: <input type="number" class="mass" value="${body.mass}" /></label>
-  //               <label>Radius: <input type="number" class="radius" value="${body.radius}" /></label>
-  //               <label>Initial Position: 
-  //               <input type="number" class="position-x" value="${body.position.x}" step="0.1" />
-  //               <input type="number" class="position-y" value="${body.position.y}" step="0.1" />
-  //               <input type="number" class="position-z" value="${body.position.z}" step="0.1" />
-  //               </label>
-  //               <label>Initial Velocity: 
-  //               <input type="number" class="velocity-x" value="${body.initialVelocity.x}" step="0.01" />
-  //               <input type="number" class="velocity-y" value="${body.initialVelocity.y}" step="0.01" />
-  //               <input type="number" class="velocity-z" value="${body.initialVelocity.z}" step="0.01" />
-  //               </label>
-  //           </div>
-  //       `,
-  // ).join("");
+  document.querySelector(".body-controls")!.innerHTML += INITIAL_BODIES.map(
+    (body, i) => `
+            <div class="body">
+                <h2>Body ${i}</h2>
+                <label>Mass: <input type="number" class="mass" value="${body.mass}" /></label>
+                <label>Radius: <input type="number" class="radius" value="${body.radius}" /></label>
+                <label>Initial Position: 
+                <input type="number" class="position-x" value="${body.position.x}" step="0.1" />
+                <input type="number" class="position-y" value="${body.position.y}" step="0.1" />
+                <input type="number" class="position-z" value="${body.position.z}" step="0.1" />
+                </label>
+            </div>
+        `,
+  ).join("");
 
   function SetUpControls() {
     if (controlsSetUp) return;
@@ -160,15 +157,22 @@ export function PrepareUI() {
       SetAtmosphereWavelengths([ATMOSPHERE_WAVELENGTHS.x, ATMOSPHERE_WAVELENGTHS.y, newBlueWavelength]);
     });
 
+    document.querySelector(".ascale")!.addEventListener("change", (e) => {
+      const newAtmosphereScale = parseFloat((e.target as HTMLInputElement).value);
+      SetAtmosphereScale(newAtmosphereScale);
+    });
+
+    document.querySelector(".spd")!.addEventListener("change", (e) => {
+      const newShowPrebakedDepth = (e.target as HTMLInputElement).checked;
+      SetShowPrebakedDepth(newShowPrebakedDepth);
+    });
+
     document.querySelectorAll(".body").forEach((control, i) => {
       const massInput = control.querySelector(".mass") as HTMLInputElement;
       const radiusInput = control.querySelector(".radius") as HTMLInputElement;
       const positionXInput = control.querySelector(".position-x") as HTMLInputElement;
       const positionYInput = control.querySelector(".position-y") as HTMLInputElement;
       const positionZInput = control.querySelector(".position-z") as HTMLInputElement;
-      const velocityXInput = control.querySelector(".velocity-x") as HTMLInputElement;
-      const velocityYInput = control.querySelector(".velocity-y") as HTMLInputElement;
-      const velocityZInput = control.querySelector(".velocity-z") as HTMLInputElement;
 
       massInput.addEventListener("change", () => {
         INITIAL_BODIES[i].mass = parseFloat(massInput.value);
@@ -188,18 +192,6 @@ export function PrepareUI() {
 
       positionZInput.addEventListener("change", () => {
         INITIAL_BODIES[i].position.z = parseFloat(positionZInput.value);
-      });
-
-      velocityXInput.addEventListener("change", () => {
-        INITIAL_BODIES[i].velocity.x = parseFloat(velocityXInput.value);
-      });
-
-      velocityYInput.addEventListener("change", () => {
-        INITIAL_BODIES[i].velocity.y = parseFloat(velocityYInput.value);
-      });
-
-      velocityZInput.addEventListener("change", () => {
-        INITIAL_BODIES[i].velocity.z = parseFloat(velocityZInput.value);
       });
     });
 

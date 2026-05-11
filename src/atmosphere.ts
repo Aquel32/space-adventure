@@ -1,6 +1,6 @@
 import { common, d, std, tgpu, type RenderFlag, type SampledFlag, type StorageFlag, type TgpuBuffer, type TgpuRoot, type TgpuTexture, type TgpuUniform } from "typegpu";
 import type { Camera } from "./setup-first-person-camera";
-import { ATMOSPHERE_DENSITY_FALLOFF, ATMOSPHERE_SCATTERING_STRENGTH, ATMOSPHERE_STEP_COUNT, ATMOSPHERE_WAVELENGTHS } from "./data/settings";
+import { ATMOSPHERE_DENSITY_FALLOFF, ATMOSPHERE_SCALE, ATMOSPHERE_SCATTERING_STRENGTH, ATMOSPHERE_STEP_COUNT, ATMOSPHERE_WAVELENGTHS } from "./data/settings";
 import { randf } from "@typegpu/noise";
 
 export function PrepareAtmosphere(
@@ -48,6 +48,11 @@ export function PrepareAtmosphere(
         sampler: { sampler: "non-filtering" },
         depthTexture: { texture: d.textureDepth2d() },
         colorTexture: { texture: d.texture2d() },
+        opticalDepthTexture: { texture: d.texture2d() },
+    });
+
+    const atmosphereBakeLayout = tgpu.bindGroupLayout({
+        currentBodyIndex: { uniform: d.i32 },
     });
 
     const falloffUniform = root.createUniform(d.f32);
@@ -58,6 +63,8 @@ export function PrepareAtmosphere(
     scatteringStrengthUniform.write(ATMOSPHERE_SCATTERING_STRENGTH);
     const wavelengthsUniform = root.createUniform(d.vec3f);
     wavelengthsUniform.write(ATMOSPHERE_WAVELENGTHS);
+    const scaleUniform = root.createUniform(d.f32);
+    scaleUniform.write(ATMOSPHERE_SCALE);
 
     const sampler = root.createSampler({
         magFilter: "nearest",
@@ -71,6 +78,11 @@ export function PrepareAtmosphere(
         })
         .$usage("render", "sampled");
 
+    const opticalDepthTexture = root.createTexture({
+        size: [512, 512, 1],
+        format: "rgba8unorm",
+    }).$usage("render", "sampled");
+
     const currentBodyIndexBuffer = root.createBuffer(d.i32).$usage("uniform");
 
     const atmosphereBindGroup = root.createBindGroup(atmosphereRenderLayout, {
@@ -80,6 +92,11 @@ export function PrepareAtmosphere(
         currentBodyIndex: currentBodyIndexBuffer,
         depthTexture,
         colorTexture,
+        opticalDepthTexture,
+    });
+
+    const atmosphereBakeBindGroup = root.createBindGroup(atmosphereBakeLayout, {
+        currentBodyIndex: currentBodyIndexBuffer,
     });
 
     function raySphereIntersect(rayOrigin: d.v3f, rayDirection: d.v3f, sphereCenter: d.v3f, sphereRadius: number) {
@@ -123,7 +140,7 @@ export function PrepareAtmosphere(
         return density;
     }
 
-    function opticalDepth(rayOrigin: d.v3f, rayDirection: d.v3f, rayLength: number, planetCentre: d.v3f, atmosphereRadius: number, planetRadius: number, toCollisionLength: number) {
+    function opticalDepth(rayOrigin: d.v3f, rayDirection: d.v3f, rayLength: number, planetCentre: d.v3f, atmosphereRadius: number, planetRadius: number) {
         "use gpu";
         let densitySamplePoint = d.vec3f(rayOrigin);
         const stepCount = stepCountUniform.$;
@@ -137,6 +154,18 @@ export function PrepareAtmosphere(
             densitySamplePoint += rayDirection * stepSize;
         }
         return opticalDepth;
+    }
+
+    function opticalDepthBaked(rayOrigin: d.v3f, rayDirection: d.v3f, rayLength: number, planetCentre: d.v3f, atmosphereRadius: number, planetRadius: number) {
+        "use gpu";
+        const height = std.length(rayOrigin - planetCentre) - planetRadius; //height above suface
+        const height01 = std.saturate(height / (atmosphereRadius - planetRadius)); // 0 at surface, 1 at top of atmosphere
+
+        const angle = std.dot(rayDirection, std.normalize(rayOrigin - planetCentre));
+        const uv = d.vec2f(height01, angle);
+
+        const opticalDepthSample = std.textureSampleLevel(atmosphereRenderLayout.$.opticalDepthTexture, atmosphereRenderLayout.$.sampler, uv, 0);
+        return opticalDepthSample.x;
     }
 
     function calculateLight(rayOrigin: d.v3f, rayDirection: d.v3f, rayLength: number, planetCentre: d.v3f, atmosphereRadius: number, planetRadius: number, originalColor: d.v3f) {
@@ -164,11 +193,11 @@ export function PrepareAtmosphere(
         for (let i = d.u32(0); i < stepCount; i++) {
             const toSunDirection = std.normalize(sunPosition - inScatterPoint);
 
-            const toCollisionLength = raySphereIntersect(inScatterPoint, toSunDirection, planetCentre, planetRadius).x;
-
             const sunRayLength = raySphereIntersect(inScatterPoint, toSunDirection, planetCentre, atmosphereRadius).y;
-            const sunRayOpticalDepth = opticalDepth(inScatterPoint, toSunDirection, sunRayLength, planetCentre, atmosphereRadius, planetRadius, toCollisionLength);
-            viewRayOpticalDepth = opticalDepth(inScatterPoint, rayDirection * -1, stepSize * d.f32(i), planetCentre, atmosphereRadius, planetRadius, toCollisionLength);
+            const sunRayOpticalDepth = opticalDepth(inScatterPoint, toSunDirection, sunRayLength, planetCentre, atmosphereRadius, planetRadius);
+            // const sunRayOpticalDepth = opticalDepthBaked(inScatterPoint, toSunDirection, sunRayLength, planetCentre, atmosphereRadius, planetRadius);
+            viewRayOpticalDepth = opticalDepth(inScatterPoint, rayDirection * -1, stepSize * d.f32(i), planetCentre, atmosphereRadius, planetRadius);
+            // viewRayOpticalDepth = opticalDepthBaked(inScatterPoint, rayDirection * -1, stepSize * d.f32(i), planetCentre, atmosphereRadius, planetRadius);
             const transmittance = std.exp(-(sunRayOpticalDepth + viewRayOpticalDepth) * scatterCoefficients);
             const localDensity = densityAtPoint(inScatterPoint, planetCentre, atmosphereRadius, planetRadius);
             inScatterLight += localDensity * transmittance * scatterCoefficients * stepSize;
@@ -211,7 +240,7 @@ export function PrepareAtmosphere(
                 atmosphereRenderLayout.$.bodiesPositionsBuffer[atmosphereRenderLayout.$.currentBodyIndex * 3 + 2],
             );
             const planetRadius = bodiesUniform.$[atmosphereRenderLayout.$.currentBodyIndex].radius;
-            const atmosphereRadius = planetRadius + 0.1;
+            const atmosphereRadius = planetRadius + (planetRadius * scaleUniform.$);
 
             const hitInfo = raySphereIntersect(rayOrigin, rayDirection, planetCentre, atmosphereRadius);
 
@@ -257,6 +286,8 @@ export function PrepareAtmosphere(
         stepCountUniform.write(ATMOSPHERE_STEP_COUNT);
         scatteringStrengthUniform.write(ATMOSPHERE_SCATTERING_STRENGTH);
         wavelengthsUniform.write(ATMOSPHERE_WAVELENGTHS);
+        scaleUniform.write(ATMOSPHERE_SCALE);
+        bakeOpticalDepth();
     }
 
     function render() {
@@ -267,9 +298,70 @@ export function PrepareAtmosphere(
             .draw(3);
     }
 
+    const bakeOpticalDepthPipeline = root.createRenderPipeline({
+        vertex: common.fullScreenTriangle,
+        fragment: ({ uv }) => {
+            "use gpu";
+            const planetRadius = bodiesUniform.$[atmosphereBakeLayout.$.currentBodyIndex].radius;
+            const atmosphereRadius = planetRadius + (planetRadius * scaleUniform.$);
+
+            const height01 = uv.x; // from 0 (surface) to 1 (top of atmosphere)
+            const angle = uv.y * d.f32(Math.PI); // from 1 (looking up) to 0 (looking down)
+            const dir = d.vec2f(std.sin(angle), std.cos(angle));
+
+            const inPoint = d.vec2f(0, std.mix(planetRadius, atmosphereRadius, height01));
+            const dstThrough = raySphereIntersect(d.vec3f(inPoint, 0), d.vec3f(dir, 0), d.vec3f(0), atmosphereRadius).y;
+            const outScattering = opticalDepth(d.vec3f(inPoint, 0), d.vec3f(dir, 0), dstThrough, d.vec3f(0), atmosphereRadius, planetRadius);
+            return d.vec4f(d.vec3f(outScattering), 1);
+        },
+        targets: { format: "rgba8unorm" },
+    });
+
+
+    function testRender() {
+        bakeOpticalDepth();
+
+        const tLayout = tgpu.bindGroupLayout({
+            texture: { texture: d.texture2d() },
+            sampler: { sampler: "non-filtering" },
+        });
+
+        const testRenderPipeline = root.createRenderPipeline({
+            vertex: common.fullScreenTriangle,
+            fragment: ({ uv }) => {
+                "use gpu";
+
+                const color = std.textureSample(tLayout.$.texture, tLayout.$.sampler, uv);
+                return color;
+            }
+        });
+
+        const tBindGroup = root.createBindGroup(tLayout, {
+            texture: opticalDepthTexture,
+            sampler: sampler,
+        });
+
+        testRenderPipeline
+            .withColorAttachment({ view: context })
+            .with(tBindGroup)
+            .draw(3);
+    }
+
+    function bakeOpticalDepth() {
+        currentBodyIndexBuffer.write(3); // TODO: loop through bodies
+
+        bakeOpticalDepthPipeline
+            .withColorAttachment({ view: opticalDepthTexture })
+            .with(atmosphereBakeBindGroup)
+            .draw(3);
+    }
+
+    bakeOpticalDepth();
+
     return {
         test,
         render,
-        reloadSettings
+        reloadSettings,
+        testRender
     }
 }

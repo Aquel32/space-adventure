@@ -146,7 +146,6 @@ export function PrepareShadows(
 
             const vertex = inVertex.xyz;
 
-
             const rotatedPoint = rotationMatrix.mul(d.vec4f(vertex, 1)).xyz;
             const finalPoint = rotatedPoint.mul(body.radius).add(offset);
             const position = faceMatrix.mul(d.vec4f(finalPoint, 1));
@@ -191,7 +190,6 @@ export function PrepareShadows(
 
             bodiesRenderData.forEach((data, bodyIndex) => {
                 if (bodyIndex === sourceIndex) return;
-
                 currentBodyIndexUniform.write(bodyIndex);
                 shadowRenderPipeline
                     .withDepthStencilAttachment({
@@ -264,6 +262,8 @@ export function PrepareShadows(
             if (faceIndex < 0) {
                 return d.vec4f(bgColor, 1.0);
             }
+
+            return d.vec4f(d.vec3f(1) * (1 - depth), 1)
 
             const color = depthToColor(depth);
 

@@ -224,14 +224,15 @@ const mainRenderPipeline = root.createRenderPipeline({
     const depthRef = (dist - normalOffset) / 1000;
 
     let inShadow = std.textureSampleCompareLevel(shadowsLayout.$.texture, shadowsLayout.$.sampler, lightDir, depthRef);
-    inShadow = 0.4 + inShadow * 0.6; // ambient term
-    let finalColor = (groundColor * (0.4 + diffuse * 0.6) + specular) * inShadow;
+    const ambient = 0.05;
+    let finalColor = ((ambient * groundColor) + (diffuse * groundColor) + specular) * inShadow;
 
     if (debugShadowsUniform.$ === 1) {
       finalColor = d.vec4f(d.vec3f(inShadow), 1);
     }
 
     let emission = d.vec4f(0, 0, 0, 1);
+
     const treshold = 0.8;
     if (finalColor.r > treshold || finalColor.g > treshold || finalColor.b > treshold) {
       const val = (diffuse + specular - treshold) / (treshold);
@@ -496,6 +497,8 @@ function render() {
     simulation.predictOrbits(positionsArray, velocitiesArray, bodies);
   }
 
+  shadows.renderShadowMaps();
+
   bodiesRenderData.forEach((item, i) => {
     currentBodyIndexUniform.write(i);
 
@@ -521,40 +524,35 @@ function render() {
       .draw(sphere.getVertexAmount(), 1);
   });
 
-
   atmosphere.render();
 
-  // bloomEffect.applyGausianBlur();
-  // bloomEffect.render();
+  bloomEffect.applyGausianBlur();
+  bloomEffect.render();
 
-  // if (RENDER_ORBITS) {
-  //   simulation.renderOrbits(bodies);
-  // }
+  if (RENDER_ORBITS) {
+    simulation.renderOrbits(bodies);
+  }
 
-  // if (DEBUG_NORMALS) {
-  //   bodiesRenderData.forEach((item, i) => {
-  //     currentBodyIndexUniform.write(i);
-  //     normalDebugPipeline
-  //       .withColorAttachment({ view: context, loadOp: "load", clearValue: { r: 0, g: 0, b: 0, a: 1 } })
-  //       .withDepthStencilAttachment({
-  //         view: depthTexture,
-  //         depthLoadOp: "load",
-  //         depthClearValue: 1,
-  //         depthStoreOp: "store",
-  //       })
-  //       .with(mainBindGroup)
-  //       .with(normalDebugVertexLayout, item.trickDebugNormalVerticies)
-  //       .draw(sphere.getVertexAmount() * 2, 1);
-  //   });
-  // }
-
-  // shadows.renderShadowMaps();
-
+  if (DEBUG_NORMALS) {
+    bodiesRenderData.forEach((item, i) => {
+      currentBodyIndexUniform.write(i);
+      normalDebugPipeline
+        .withColorAttachment({ view: context, loadOp: "load", clearValue: { r: 0, g: 0, b: 0, a: 1 } })
+        .withDepthStencilAttachment({
+          view: depthTexture,
+          depthLoadOp: "load",
+          depthClearValue: 1,
+          depthStoreOp: "store",
+        })
+        .with(mainBindGroup)
+        .with(normalDebugVertexLayout, item.trickDebugNormalVerticies)
+        .draw(sphere.getVertexAmount() * 2, 1);
+    });
+  }
 
   if (SHOW_DEPTH_CUBE) {
     shadows.debugRender();
   }
-
 
   frame++;
   requestAnimationFrame(render);

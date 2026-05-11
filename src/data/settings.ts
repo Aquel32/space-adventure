@@ -81,7 +81,17 @@ export function SetAtmosphereStepCount(newAtmosphereStepCount: number) {
     ATMOSPHERE_STEP_COUNT = newAtmosphereStepCount;
 }
 
-export let ATMOSPHERE_DENSITY_FALLOFF = 0.8;
+export let ATMOSPHERE_DENSITY_FALLOFF = 4;
 export function SetAtmosphereDensityFalloff(newAtmosphereDensityFalloff: number) {
     ATMOSPHERE_DENSITY_FALLOFF = newAtmosphereDensityFalloff;
+}
+
+export let ATMOSPHERE_SCATTERING_STRENGTH = 10;
+export function SetAtmosphereScatteringStrength(newAtmosphereScatteringStrength: number) {
+    ATMOSPHERE_SCATTERING_STRENGTH = newAtmosphereScatteringStrength;
+}
+
+export let ATMOSPHERE_WAVELENGTHS = d.vec3f(700, 530, 440);
+export function SetAtmosphereWavelengths(newAtmosphereWavelengths: [number, number, number]) {
+    ATMOSPHERE_WAVELENGTHS = d.vec3f(...newAtmosphereWavelengths);
 }

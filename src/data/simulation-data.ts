@@ -124,9 +124,12 @@ export const INITIAL_BODIES = d.arrayOf(
     radius: SUN_RENDER_RADIUS,
     rotationSpeed: d.f32(0),
     colors: [
-      { color: d.vec4f(1.0, 0.73, 0.35, 1), height: 0.90 },
-      { color: d.vec4f(1.0, 0.93, 0.66, 1), height: 0.988 },
-      { color: d.vec4f(1.0, 0.99, 0.88, 1), height: 1.075 },
+      { color: d.vec4f(1), height: 0.9 },
+      { color: d.vec4f(1), height: 0.988 },
+      { color: d.vec4f(1), height: 1.075 },
+      // { color: d.vec4f(1.0, 0.73, 0.35, 1), height: 0.90 },
+      // { color: d.vec4f(1.0, 0.93, 0.66, 1), height: 0.988 },
+      // { color: d.vec4f(1.0, 0.99, 0.88, 1), height: 1.075 },
     ],
     velocity: SUN_INITIAL_VELOCITY,
     mass: SUN_MASS,
@@ -191,8 +194,8 @@ export const INITIAL_BODIES = d.arrayOf(
   }, // Moon
   {
     position: d.vec3f(152.4, 0, 0),
-    radius: 0.1,
-    // radius: 20,
+    // radius: 0.1,
+    radius: 20,
     rotationSpeed: d.f32(0.1),
     colors: [
       { color: d.vec4f(0.3, 0.12, 0.08, 1), height: 0.90 },

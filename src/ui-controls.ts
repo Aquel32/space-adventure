@@ -1,4 +1,4 @@
-import { ATMOSPHERE_DENSITY_FALLOFF, ATMOSPHERE_STEP_COUNT, DEBUG_NORMALS, DEBUG_SHADOWS, DEPTH_BIAS, GAUSIAN_ITERATIONS, GRAVITY_MULTIPLIER, NORMAL_OFFSET, PIXEL_SCALE, RENDER_ORBITS, SetAtmosphereStepCount, SetAtmosphereDensityFalloff, SetAttachedBody, SetDebugNormals, SetDebugShadows, SetDepthBias, SetGausianIterations, SetGravityMultiplier, SetNormalOffset, SetPixelScale, SetRenderOrbits, SetShowDepthCube, SetSimulationSpeed, SHOW_DEPTH_CUBE, SIMULATION_SPEED } from "./data/settings";
+import { ATMOSPHERE_DENSITY_FALLOFF, ATMOSPHERE_STEP_COUNT, DEBUG_NORMALS, DEBUG_SHADOWS, DEPTH_BIAS, GAUSIAN_ITERATIONS, GRAVITY_MULTIPLIER, NORMAL_OFFSET, PIXEL_SCALE, RENDER_ORBITS, SetAtmosphereStepCount, SetAtmosphereDensityFalloff, SetAttachedBody, SetDebugNormals, SetDebugShadows, SetDepthBias, SetGausianIterations, SetGravityMultiplier, SetNormalOffset, SetPixelScale, SetRenderOrbits, SetShowDepthCube, SetSimulationSpeed, SHOW_DEPTH_CUBE, SIMULATION_SPEED, ATMOSPHERE_SCATTERING_STRENGTH, SetAtmosphereScatteringStrength, ATMOSPHERE_WAVELENGTHS, SetAtmosphereWavelengths } from "./data/settings";
 import { INITIAL_BODIES } from "./data/simulation-data";
 import { ReloadSettings, SetUpBodiesRenderData } from "./main";
 import { SetEpsilon, SetStrength, strength } from "./sphere";
@@ -26,10 +26,17 @@ export function PrepareUI() {
           <label>Show Depth Cube: <input name="show-depth-cube" type="checkbox" class="sdc" ${SHOW_DEPTH_CUBE ? "checked" : ""} /></label>
           <label>Depth Bias: <input name="depth-bias" type="number" class="db" value="${DEPTH_BIAS}" /></label>
            <label>Normal Offset: <input name="normal-offset" type="number" class="no" value="${NORMAL_OFFSET}" /></label>
-          </div>
-          <p>atmoshere</p>
-          <label>Density Falloff: <input name="atmosphere-density-falloff" type="number" class="adf" value="${ATMOSPHERE_DENSITY_FALLOFF}" /></label>
-          <label>Step Count: <input name="atmosphere-step-count" type="number" class="asc" value="${ATMOSPHERE_STEP_COUNT}" /></label>
+           <p>atmoshere</p>
+           <label>Density Falloff: <input name="atmosphere-density-falloff" type="number" class="adf" value="${ATMOSPHERE_DENSITY_FALLOFF}" /></label>
+           <label>Step Count: <input name="atmosphere-step-count" type="number" class="asc" value="${ATMOSPHERE_STEP_COUNT}" /></label>
+           <label>Scattering Strength: <input name="atmosphere-scattering-strength" type="number" class="ass" value="${ATMOSPHERE_SCATTERING_STRENGTH}" /></label>
+              <div>
+                <label>Wavelengths: </label>
+                <label>R: <input name="atmosphere-wavelength-red" type="number" class="awr" value="${ATMOSPHERE_WAVELENGTHS.x}" /></label>
+                <label>G: <input name="atmosphere-wavelength-green" type="number" class="awg" value="${ATMOSPHERE_WAVELENGTHS.y}" /></label>
+                <label>B: <input name="atmosphere-wavelength-blue" type="number" class="awb" value="${ATMOSPHERE_WAVELENGTHS.z}" /></label>
+              </div>
+           </div>
         <div class="body-controls">
 
         </div>
@@ -131,6 +138,26 @@ export function PrepareUI() {
     document.querySelector(".asc")!.addEventListener("change", (e) => {
       const newAtmosphereStepCount = parseFloat((e.target as HTMLInputElement).value);
       SetAtmosphereStepCount(newAtmosphereStepCount);
+    });
+
+    document.querySelector(".ass")!.addEventListener("change", (e) => {
+      const newAtmosphereScatteringStrength = parseFloat((e.target as HTMLInputElement).value);
+      SetAtmosphereScatteringStrength(newAtmosphereScatteringStrength);
+    });
+
+    document.querySelector(".awr")!.addEventListener("change", (e) => {
+      const newRedWavelength = parseFloat((e.target as HTMLInputElement).value);
+      SetAtmosphereWavelengths([newRedWavelength, ATMOSPHERE_WAVELENGTHS.y, ATMOSPHERE_WAVELENGTHS.z]);
+    });
+
+    document.querySelector(".awg")!.addEventListener("change", (e) => {
+      const newGreenWavelength = parseFloat((e.target as HTMLInputElement).value);
+      SetAtmosphereWavelengths([ATMOSPHERE_WAVELENGTHS.x, newGreenWavelength, ATMOSPHERE_WAVELENGTHS.z]);
+    });
+
+    document.querySelector(".awb")!.addEventListener("change", (e) => {
+      const newBlueWavelength = parseFloat((e.target as HTMLInputElement).value);
+      SetAtmosphereWavelengths([ATMOSPHERE_WAVELENGTHS.x, ATMOSPHERE_WAVELENGTHS.y, newBlueWavelength]);
     });
 
     document.querySelectorAll(".body").forEach((control, i) => {

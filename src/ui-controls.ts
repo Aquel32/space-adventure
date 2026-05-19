@@ -8,32 +8,45 @@ export function PrepareUI() {
 
   document.querySelector("main")!.innerHTML += `<section id="controls">
         <div class="main-controls">
-          <p>simulation</p>
-          <label>Gravity Multiplier: <input name="gravity" type="number" class="g reload" value="${GRAVITY_MULTIPLIER}" /></label>
-          <label>Simulation Speed: <input name="simulation-speed" type="number" class="ss" value="${SIMULATION_SPEED}" /></label>
-          <label>Attached Body: <input name="attached-body" type="number" class="ab" value="${3}" /></label>
-          <p>bloom</p>
-          <label>Gaussian Iterations: <input name="gaussian-iterations" type="number" class="bi" value="${GAUSIAN_ITERATIONS}" /></label>
-          <label>Pixel Scale: <input name="pixel-scale" type="number" class="ps" value="${PIXEL_SCALE}" /></label>
-          <p>orbit prediction</p>
-          <label>Render Orbits: <input name="render-orbits" type="checkbox" class="ro" ${RENDER_ORBITS ? "checked" : ""} /></label>
-          <p>sphere</p>
-          <label>Perlin Strength: <input name="strength" type="number" class="str reload" value="${strength}" /></label>
-          <label>Epsilon: <input name="epsilon" type="number" class="eps reload" value="${0.001}" /></label>
-          <label>Debug Normals: <input name="debug-normals" type="checkbox" class="dn" ${DEBUG_NORMALS ? "checked" : ""} /></label>
-          <p>shadows</p>
-          <label>Debug Shadows: <input name="debug-shadows" type="checkbox" class="ds" ${DEBUG_SHADOWS ? "checked" : ""} /></label>
-          <label>Show Depth Cube: <input name="show-depth-cube" type="checkbox" class="sdc" ${SHOW_DEPTH_CUBE ? "checked" : ""} /></label>
-          <label>Depth Bias: <input name="depth-bias" type="number" class="db" value="${DEPTH_BIAS}" /></label>
-           <label>Normal Offset: <input name="normal-offset" type="number" class="no" value="${NORMAL_OFFSET}" /></label>
-           <p>atmoshere</p>
+          <button class="tab-button" tab="simulation">Gravity</button>
+          <div class="tab" id="simulation">
+            <label>Gravity Multiplier: <input name="gravity" type="number" class="g reload" value="${GRAVITY_MULTIPLIER}" /></label>
+            <label>Simulation Speed: <input name="simulation-speed" type="number" class="ss" value="${SIMULATION_SPEED}" /></label>
+            <label>Attached Body: <input name="attached-body" type="number" class="ab" value="${3}" /></label>
+          </div>
+          <button class="tab-button" tab="bloom">Bloom</button>
+          <div class="tab" id="bloom">
+            <label>Gaussian Iterations: <input name="gaussian-iterations" type="number" class="bi" value="${GAUSIAN_ITERATIONS}" /></label>
+            <label>Pixel Scale: <input name="pixel-scale" type="number" class="ps" value="${PIXEL_SCALE}" /></label>
+          </div>
+          <button class="tab-button" tab="orbit">Orbit prediction</button>
+          <div class="tab" id="orbit">
+            <label>Render Orbits: <input name="render-orbits" type="checkbox" class="ro" ${RENDER_ORBITS ? "checked" : ""} /></label>
+          </div>
+          <button class="tab-button" tab="sphere">Sphere generator</button>
+          <div class="tab" id="sphere">
+            <label>Perlin Strength: <input name="strength" type="number" class="str reload" value="${strength}" /></label>
+            <label>Epsilon: <input name="epsilon" type="number" class="eps reload" value="${0.001}" /></label>
+            <label>Debug Normals: <input name="debug-normals" type="checkbox" class="dn" ${DEBUG_NORMALS ? "checked" : ""} /></label>
+          </div>
+          <button class="tab-button" tab="shadows">Shadows</button>
+          <div class="tab" id="shadows">
+            <label>Debug Shadows: <input name="debug-shadows" type="checkbox" class="ds" ${DEBUG_SHADOWS ? "checked" : ""} /></label>
+            <label>Show Depth Cube: <input name="show-depth-cube" type="checkbox" class="sdc" ${SHOW_DEPTH_CUBE ? "checked" : ""} /></label>
+            <label>Depth Bias: <input name="depth-bias" type="number" class="db" value="${DEPTH_BIAS}" /></label>
+            <label>Normal Offset: <input name="normal-offset" type="number" class="no" value="${NORMAL_OFFSET}" /></label>
+          </div>
+          <button class="tab-button" tab="atmosphere">Atmosphere</button>
+          <div class="tab" id="atmosphere">
            <label>Step Count: <input name="atmosphere-step-count" type="number" class="asc" value="${ATMOSPHERE_STEP_COUNT}" /></label>
               <label>Show Prebaked Depth: <input name="show-prebaked-depth" type="checkbox" class="spd" ${ATMOSPHERE_SHOW_PREBAKED_DEPTH ? "checked" : ""} /></label>
            </div>
-        <div class="body-controls">
+        <button class="tab-button" tab="bodies">Initial bodies data</button>
+        <div class="tab body-controls" id="bodies">
 
         </div>
     <section>`;
+
 
   document.querySelector(".body-controls")!.innerHTML += INITIAL_BODIES.map(
     (body, i) => `
@@ -41,17 +54,17 @@ export function PrepareUI() {
                 <h2>Body ${i}</h2>
                 <label>Mass: <input type="number" class="mass" value="${body.mass}" /></label>
                 <label>Radius: <input type="number" class="radius" value="${body.radius}" /></label>
-                <label>Initial Position: 
-                <input type="number" class="position-x" value="${body.position.x}" step="0.1" />
-                <input type="number" class="position-y" value="${body.position.y}" step="0.1" />
-                <input type="number" class="position-z" value="${body.position.z}" step="0.1" />
+                <label class="vector">Initial Position: 
+                  <input type="number" class="position-x" value="${body.position.x}" step="0.1" />
+                  <input type="number" class="position-y" value="${body.position.y}" step="0.1" />
+                  <input type="number" class="position-z" value="${body.position.z}" step="0.1" />
                 </label>
                 <p>atmosphere</p>
                 <label>Enabled: <input name="atmosphere-enabled" type="checkbox" class="ae" ${body.atmosphere.enabled === 1 ? "checked" : ""} /></label>
                 <label>Radius: <input name="atmosphere-radius" type="number" class="ar" value="${body.atmosphere.atmosphereRadius}" /></label>
                 <label>Falloff: <input name="atmosphere-falloff" type="number" class="af" value="${body.atmosphere.densityFalloff}" /></label>
                 <label>Scattering Strength: <input name="atmosphere-scattering-strength" type="number" class="as" value="${body.atmosphere.scatteringStrength}" /></label>
-                <label>Wavelengths: 
+                <label class="vector">Wavelengths: 
                   <input name="atmosphere-wavelengths-r" type="number" class="aw-r" value="${body.atmosphere.wavelengths.x}" />
                   <input name="atmosphere-wavelengths-g" type="number" class="aw-g" value="${body.atmosphere.wavelengths.y}" />
                   <input name="atmosphere-wavelengths-b" type="number" class="aw-b" value="${body.atmosphere.wavelengths.z}" />
@@ -59,6 +72,18 @@ export function PrepareUI() {
             </div>
         `,
   ).join("");
+
+  document.querySelectorAll(".tab").forEach((tab) => {
+    tab.classList.add("hidden");
+  })
+
+  document.querySelectorAll("button.tab-button").forEach((tabButton) => {
+    tabButton.addEventListener("click", (e) => {
+      const tabName = tabButton.getAttribute("tab");
+      document.querySelector(`.tab#${tabName}`)?.classList.toggle("hidden");
+    })
+  })
+
 
   function SetUpControls() {
     if (controlsSetUp) return;

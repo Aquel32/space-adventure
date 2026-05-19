@@ -33,7 +33,6 @@ import { PrepareAtmosphere } from "./atmosphere";
 document.querySelector<HTMLDivElement>("#app")!.innerHTML = `
 <main>
   <canvas id="canvas" width="1920" height="1080"></canvas>
-  <p id="veloasdasdadadada"></p>
 </main>
 `;
 

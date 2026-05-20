@@ -2,8 +2,6 @@ import tgpu, { d, std } from 'typegpu';
 import { perlin3d, randomGeneratorSlot, XOROSHIRO64STARSTAR } from '@typegpu/noise';
 import { cos, dot, floor, mix, sin, sqrt } from 'typegpu/std';
 
-const root = await tgpu.init();
-
 const TWO_PI = d.f32(d.f32(Math.PI) * d.f32(2));
 let seed: d.v2u;
 

@@ -7,7 +7,28 @@
     <title>typegpu-vite-vanilla-template</title>
   </head>
   <body>
-    <div id="app"></div>
+    <div id="info">
+      <div id="info-content">
+        <section>
+          <h1>Welcome to Space Adventure</h1>
+          <p>On right side you can tweak the settings.</p>
+        </section>
+        
+        <section>
+          <h2>Controls</h2>
+          <p>W/A/S/D/SHIFT/SPACE to move and mouse to look around.</p>
+          <p>With scroll you can adjust camera speed.</p>
+          <p>You are gravitationally bound to the closest planet. In gravity tab you can manually attach to other planet.</p>
+          <p>If you're close enough to a planet, you will be pulled towards it and camera would be rotated as if you were standing on its surface.</p>
+        </section>
+
+        <p style="align-self: center;">! Gravity simulation can be very UNSTABLE (i have focused on shader aspect). !</p>
+
+        <button>Close</button>
+      </div>
+    </div>
+    <div id="app">
+    </div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

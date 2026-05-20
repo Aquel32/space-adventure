@@ -20,7 +20,7 @@ import tgpu, {
 } from "typegpu";
 import * as sphere from "./sphere";
 import { BODY_COUNT_CONST, CelestianBody, INITIAL_BODIES } from "./data/simulation-data";
-import { ATMOSPHERE_SHOW_PREBAKED_DEPTH, ATTACHED_BODY_INDEX, DEBUG_NORMALS, DEBUG_SHADOWS, NORMAL_OFFSET, ORBIT_PREDICTION_STEPS, RENDER_ORBITS, SetAttachedBody, SHOW_DEPTH_CUBE, SIMULATION_SPEED } from "./data/settings";
+import { ATMOSPHERE_SHOW_PREBAKED_DEPTH, ATTACHED_BODY_INDEX, DEBUG_NORMALS, DEBUG_SHADOWS, NORMAL_OFFSET, ORBIT_PREDICTION_STEPS, PERLIN_EPSILON, PERLIN_STRENGTH, RENDER_ORBITS, SetAttachedBody, SHOW_DEPTH_CUBE, SIMULATION_SPEED } from "./data/settings";
 import { PrepareBloom } from "./postprocessing/bloom";
 import { bodiesToArrays, getBodyRotationSpeedInAngle, PrepareSimulation } from "./simulation";
 import { PrepareUI } from "./ui-controls";
@@ -30,7 +30,7 @@ import { sample } from "./cpuPerlin";
 import * as m from "wgpu-matrix";
 import { PrepareAtmosphere } from "./atmosphere";
 
-document.querySelector<HTMLDivElement>("#app")!.innerHTML = `
+document.querySelector<HTMLDivElement>("#app")!.innerHTML += `
 <main>
   <canvas id="canvas" width="1920" height="1080"></canvas>
 </main>
@@ -38,9 +38,13 @@ document.querySelector<HTMLDivElement>("#app")!.innerHTML = `
 
 const ui = PrepareUI();
 
-const root = await tgpu.init({
-  device: { requiredLimits: { "maxBufferSize": 4294967292, "maxStorageBufferBindingSize": 4294967292 } },
-});
+const root = await tgpu.init();
+
+// IF YOUR GPU SUPPORTS IT, YOU CAN REQUEST LARGER BUFFER SIZE LIMIT TO GENERATE MORE DETAILED BODIES
+// const root = await tgpu.init({
+//   device: { requiredLimits: { "maxBufferSize": 4294967292, "maxStorageBufferBindingSize": 4294967292 } },
+// });
+
 const canvas = document.querySelector<HTMLCanvasElement>("#canvas")!;
 const context = root.configureContext({ canvas });
 
@@ -333,21 +337,17 @@ function moveCameraWithAttachedObjectVelocity(collisionInfo: {
     return;
   }
 
-  // pozycja stara (przed przesunieciem symulacji tej klatki)
   const attachedBodyPos = d.vec3f(
     positionsArray[ATTACHED_BODY_INDEX * 3],
     positionsArray[ATTACHED_BODY_INDEX * 3 + 1],
     positionsArray[ATTACHED_BODY_INDEX * 3 + 2],
   ).add(attachedBodyVelocity.mul(-SIMULATION_SPEED));
 
-  // to samo niezaleznie od rotacij
   const direction = camera.state.pos.sub(attachedBodyPos);
 
-  // ile sie obroci w tej klatce
   const rotationAngle = getBodyRotationSpeedInAngle(bodies[ATTACHED_BODY_INDEX]);
   const attachedBodyRotationMatrix = m.mat4.rotationY(rotationAngle, d.mat4x4f());
 
-  // direction po rotacji tej klatki
   const rotatedDirection = attachedBodyRotationMatrix.mul(d.vec4f(direction, 1)).xyz;
 
   const newCameraPos = cameraPosition.sub(direction).add(rotatedDirection);
@@ -386,18 +386,18 @@ function checkForCollision() {
 
   const pointOnInitialSphere = reverseRotationMatrix.mul(d.vec4f(normalizedDirection, 1)).xyz;
 
-  const perlinValue = 1 + (sample(pointOnInitialSphere + perlinOffset) * sphere.strength);
+  const perlinValue = 1 + (sample(pointOnInitialSphere + perlinOffset) * PERLIN_STRENGTH);
   const pointWithPerlin = pointOnInitialSphere * perlinValue;
 
-  const ex = d.vec3f(sphere.epsilon, 0, 0);
-  const ey = d.vec3f(0, sphere.epsilon, 0);
-  const ez = d.vec3f(0, 0, sphere.epsilon);
+  const ex = d.vec3f(PERLIN_EPSILON, 0, 0);
+  const ey = d.vec3f(0, PERLIN_EPSILON, 0);
+  const ez = d.vec3f(0, 0, PERLIN_EPSILON);
 
-  const dhdx = (sample(pointOnInitialSphere + perlinOffset + ex) - sample(pointOnInitialSphere + perlinOffset - ex)) / (2 * sphere.epsilon);
-  const dhdy = (sample(pointOnInitialSphere + perlinOffset + ey) - sample(pointOnInitialSphere + perlinOffset - ey)) / (2 * sphere.epsilon);
-  const dhdz = (sample(pointOnInitialSphere + perlinOffset + ez) - sample(pointOnInitialSphere + perlinOffset - ez)) / (2 * sphere.epsilon);
+  const dhdx = (sample(pointOnInitialSphere + perlinOffset + ex) - sample(pointOnInitialSphere + perlinOffset - ex)) / (2 * PERLIN_EPSILON);
+  const dhdy = (sample(pointOnInitialSphere + perlinOffset + ey) - sample(pointOnInitialSphere + perlinOffset - ey)) / (2 * PERLIN_EPSILON);
+  const dhdz = (sample(pointOnInitialSphere + perlinOffset + ez) - sample(pointOnInitialSphere + perlinOffset - ez)) / (2 * PERLIN_EPSILON);
 
-  const grad = d.vec3f(dhdx, dhdy, dhdz) * sphere.strength;
+  const grad = d.vec3f(dhdx, dhdy, dhdz) * PERLIN_STRENGTH;
   const tangentialGrad = grad - (std.dot(grad, pointOnInitialSphere) * pointOnInitialSphere);
   const normal = rotationMatrix.mul(d.vec4f(std.normalize(pointWithPerlin - tangentialGrad), 1)).xyz;
 
@@ -471,13 +471,22 @@ export function ReloadSettings() {
   atmosphere.reloadSettings();
 }
 
-function render() {
+let lastTime = performance.now();
+let fpsCounter = document.getElementById("fps")!;
+
+function render() 
+{
+  const currentTime = performance.now();
+  const deltaTime = (currentTime - lastTime);
+  lastTime = currentTime;
+  fpsCounter.textContent = `FPS: ${Math.round(1 / (deltaTime / 1000))} (${Math.round(deltaTime)} ms)`;
+
   camera.updatePosition();
 
   findClosestBody();
   const collisionInfo = checkForCollision();
 
-  // simulation.pullTowardsAttachedBody(positionsArray, camera, collisionInfo);
+  simulation.pullTowardsAttachedBody(positionsArray, camera, collisionInfo);
 
   simulation.simulateGravity(positionsArray, velocitiesArray, bodies);
   simulation.simulateRotation();

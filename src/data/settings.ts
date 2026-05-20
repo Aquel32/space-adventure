@@ -85,3 +85,14 @@ export let ATMOSPHERE_SHOW_PREBAKED_DEPTH = false;
 export function SetShowPrebakedDepth(newShowPrebakedDepth: boolean) {
     ATMOSPHERE_SHOW_PREBAKED_DEPTH = newShowPrebakedDepth;
 }
+
+export let PERLIN_STRENGTH = 0.3;
+export let PERLIN_EPSILON = 0.01;
+
+export function SetStrength(newStrength: number) {
+  PERLIN_STRENGTH = newStrength;
+}
+
+export function SetEpsilon(newEpsilon: number) {
+  PERLIN_EPSILON = newEpsilon;
+}

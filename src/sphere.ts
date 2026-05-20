@@ -3,18 +3,7 @@ import type { v3f } from "typegpu/data";
 import { select } from "typegpu/std";
 import { CelestianBody } from "./data/simulation-data";
 import { perlin2d, perlin3d, randf, randomGeneratorSlot, XOROSHIRO64STARSTAR } from '@typegpu/noise'
-import { SPHERE_DIVISIONS } from "./data/settings";
-
-export let strength = 0.3;
-export let epsilon = 0.01;
-
-export function SetStrength(newStrength: number) {
-  strength = newStrength;
-}
-
-export function SetEpsilon(newEpsilon: number) {
-  epsilon = newEpsilon;
-}
+import { PERLIN_EPSILON, PERLIN_STRENGTH, SPHERE_DIVISIONS } from "./data/settings";
 
 export const cubeDirections = tgpu.const(d.arrayOf(d.vec3f, 6), [
   d.vec3f(1, 0, 0),
@@ -105,8 +94,8 @@ export function generateSphere(root: TgpuRoot, perlinOffset: number, isSphere: n
   const isSphereBuffer = root.createBuffer(d.u32).$usage("uniform");
 
   divisionsBuffer.write(SPHERE_DIVISIONS);
-  strengthBuffer.write(strength);
-  epsilonBuffer.write(epsilon);
+  strengthBuffer.write(PERLIN_STRENGTH);
+  epsilonBuffer.write(PERLIN_EPSILON);
   perlinOffsetBuffer.write(perlinOffset);
   isSphereBuffer.write(isSphere);
 

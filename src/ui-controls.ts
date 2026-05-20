@@ -1,13 +1,17 @@
-import { ATMOSPHERE_STEP_COUNT, DEBUG_NORMALS, DEBUG_SHADOWS, DEPTH_BIAS, GAUSIAN_ITERATIONS, GRAVITY_MULTIPLIER, NORMAL_OFFSET, PIXEL_SCALE, RENDER_ORBITS, SetAtmosphereStepCount, SetAttachedBody, SetDebugNormals, SetDebugShadows, SetDepthBias, SetGausianIterations, SetGravityMultiplier, SetNormalOffset, SetPixelScale, SetRenderOrbits, SetShowDepthCube, SetSimulationSpeed, SHOW_DEPTH_CUBE, SIMULATION_SPEED, ATMOSPHERE_SHOW_PREBAKED_DEPTH, SetShowPrebakedDepth } from "./data/settings";
+import { ATMOSPHERE_STEP_COUNT, DEBUG_NORMALS, DEBUG_SHADOWS, DEPTH_BIAS, GAUSIAN_ITERATIONS, GRAVITY_MULTIPLIER, NORMAL_OFFSET, PIXEL_SCALE, RENDER_ORBITS, SetAtmosphereStepCount, SetAttachedBody, SetDebugNormals, SetDebugShadows, SetDepthBias, SetGausianIterations, SetGravityMultiplier, SetNormalOffset, SetPixelScale, SetRenderOrbits, SetShowDepthCube, SetSimulationSpeed, SHOW_DEPTH_CUBE, SIMULATION_SPEED, ATMOSPHERE_SHOW_PREBAKED_DEPTH, SetShowPrebakedDepth, PERLIN_EPSILON, PERLIN_STRENGTH, SetStrength, SetEpsilon } from "./data/settings";
 import { INITIAL_BODIES } from "./data/simulation-data";
 import { ReloadSettings, SetUpBodiesRenderData } from "./main";
-import { SetEpsilon, SetStrength, strength } from "./sphere";
 
 export function PrepareUI() {
   let controlsSetUp = false;
 
   document.querySelector("main")!.innerHTML += `<section id="controls">
+        <div class="other">
+          <p id="fps">FPS: 000</p>
+          <button>I</button>
+        </div>
         <div class="main-controls">
+          <label>Camera speed: <input name="camera-speed" type="number" class="cs" value="1" disabled /></label>
           <button class="tab-button" tab="simulation">Gravity</button>
           <div class="tab" id="simulation">
             <label>Gravity Multiplier: <input name="gravity" type="number" class="g reload" value="${GRAVITY_MULTIPLIER}" /></label>
@@ -25,8 +29,8 @@ export function PrepareUI() {
           </div>
           <button class="tab-button" tab="sphere">Sphere generator</button>
           <div class="tab" id="sphere">
-            <label>Perlin Strength: <input name="strength" type="number" class="str reload" value="${strength}" /></label>
-            <label>Epsilon: <input name="epsilon" type="number" class="eps reload" value="${0.001}" /></label>
+            <label>Perlin Strength: <input name="strength" type="number" class="str reload" value="${PERLIN_STRENGTH}" /></label>
+            <label>Epsilon: <input name="epsilon" type="number" class="eps reload" value="${PERLIN_EPSILON}" /></label>
             <label>Debug Normals: <input name="debug-normals" type="checkbox" class="dn" ${DEBUG_NORMALS ? "checked" : ""} /></label>
           </div>
           <button class="tab-button" tab="shadows">Shadows</button>
@@ -59,7 +63,7 @@ export function PrepareUI() {
                   <input type="number" class="position-y" value="${body.position.y}" step="0.1" />
                   <input type="number" class="position-z" value="${body.position.z}" step="0.1" />
                 </label>
-                <p>atmosphere</p>
+                <p>Atmosphere</p>
                 <label>Enabled: <input name="atmosphere-enabled" type="checkbox" class="ae" ${body.atmosphere.enabled === 1 ? "checked" : ""} /></label>
                 <label>Radius: <input name="atmosphere-radius" type="number" class="ar" value="${body.atmosphere.atmosphereRadius}" /></label>
                 <label>Falloff: <input name="atmosphere-falloff" type="number" class="af" value="${body.atmosphere.densityFalloff}" /></label>
@@ -83,6 +87,20 @@ export function PrepareUI() {
       document.querySelector(`.tab#${tabName}`)?.classList.toggle("hidden");
     })
   })
+
+  const infoBox = document.querySelector("#info") as HTMLDivElement; 
+  document.querySelector(".other > button")!.addEventListener("click", () => {
+    infoBox.style.display = "flex";
+  });
+  document.querySelector("#info-content > button")!.addEventListener("click", () => {
+    infoBox.style.display = "none";
+  });
+
+  const visited = localStorage.getItem("visited");
+  if (!visited) {
+    infoBox.style.display = "flex";
+    localStorage.setItem("visited", "true");
+  }
 
 
   function SetUpControls() {

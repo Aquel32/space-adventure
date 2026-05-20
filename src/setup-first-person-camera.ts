@@ -34,6 +34,7 @@ export function setupFirstPersonCamera(
   partialOptions: CameraOptions,
   callback: (updatedProps: Partial<d.Infer<typeof Camera>>) => void,
 ) {
+  const moveSpeedText = document.querySelector("input[name='camera-speed']") as HTMLInputElement;
   const options = { ...cameraDefaults, ...partialOptions } as Required<CameraOptions>;
 
   // `runCallback` creates a Camera object based on the `cameraState` and passes it to the callback
@@ -144,6 +145,7 @@ export function setupFirstPersonCamera(
     (e) => {
       e.preventDefault();
       moveSpeed = std.clamp(moveSpeed * (1 - e.deltaY * 0.0005), options.speed.x, options.speed.z);
+      moveSpeedText.value = (moveSpeed*100).toFixed(2);
     },
     { passive: false },
   );

@@ -1,4 +1,4 @@
-import tgpu, { std, d, type TgpuRoot, type TgpuUniform, type TgpuBuffer } from "typegpu";
+import tgpu, { std, d, type TgpuRoot, type TgpuUniform, type TgpuBuffer, type TgpuTexture, type RenderFlag } from "typegpu";
 import { BODY_COUNT_CONST, CelestianBody } from "./data/simulation-data";
 import { ATTACHED_BODY_INDEX, GRAVITY_MULTIPLIER, ORBIT_PREDICTION_STEPS, ORBIT_PREDICTION_STEPS_CONST, SIMULATION_SPEED } from "./data/settings";
 import type { Camera } from "./setup-first-person-camera";
@@ -29,21 +29,11 @@ export function PrepareSimulation(
     canvas: HTMLCanvasElement,
     context: GPUCanvasContext,
     cameraUniform: TgpuUniform<typeof Camera>,
-    bodies: {
-        position: d.v3f;
-        radius: number;
-        colors: {
-            color: d.v4f;
-            height: number;
-        }[];
-        velocity: d.v3f;
-        mass: number;
-        isSphere: number;
-        rotationSpeed: number;
-    }[],
+    bodies: d.Infer<typeof CelestianBody>[],
     rotationMatricesArray: Float32Array<ArrayBuffer>,
     bodiesRotationMatriciesBuffer: TgpuBuffer<d.WgslArray<d.Mat4x4f>>,
     currentRotationArray: Float32Array<ArrayBuffer>,
+    mainTexture:TgpuTexture & RenderFlag
 ) {
     const orbitRenderLayout = tgpu.bindGroupLayout({
         currentBodyIndex: { storage: d.i32, access: "readonly" },
@@ -88,16 +78,17 @@ export function PrepareSimulation(
             topology: "line-strip",
         },
         targets: {
+            format: "rgba8unorm",
             blend: {
                 color: {
                     operation: 'add',
-                    srcFactor: 'one-minus-dst-alpha',
-                    dstFactor: 'one',
+                    srcFactor: 'one',
+                    dstFactor: 'zero',
                 },
                 alpha: {
                     operation: 'add',
-                    srcFactor: 'one-minus-dst-alpha',
-                    dstFactor: 'one',
+                    srcFactor: 'one',
+                    dstFactor: 'zero',
                 },
             },
         }
@@ -165,7 +156,7 @@ export function PrepareSimulation(
             currentBodyIndexBuffer.write(i);
 
             orbitPrepareRenderPipeline.
-                withColorAttachment({ view: context, loadOp: "load", clearValue: { r: 0, g: 0, b: 0, a: 0 } }).
+                withColorAttachment({ view: mainTexture, loadOp: "load", clearValue: { r: 0, g: 0, b: 0, a: 0 } }).
                 with(orbitPrepareRenderBindGroup).
                 draw(ORBIT_PREDICTION_STEPS, 1);
         });

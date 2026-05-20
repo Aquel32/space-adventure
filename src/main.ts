@@ -56,7 +56,7 @@ const cameraUniform = root.createUniform(Camera);
 const camera = setupFirstPersonCamera(
   canvas,
   {
-    initPos: d.vec3f(20, 0, 0),
+    initPos: d.vec3f(20, 5, 0),
     speed: d.vec3f(0.001, 0.01, 5),
   },
   (props) => {
@@ -313,7 +313,7 @@ export function moveCameraToAttachedObject() {
     positionsArray[ATTACHED_BODY_INDEX * 3 + 2],
   );
 
-  camera.setPosition(attachedBodyPosition.sub(d.vec3f(0, 0, bodies[ATTACHED_BODY_INDEX].radius * 3)));
+  camera.setPosition(attachedBodyPosition.sub(d.vec3f(bodies[ATTACHED_BODY_INDEX].radius * 3,0,0)));
 }
 
 function moveCameraWithAttachedObjectVelocity(collisionInfo: {
@@ -447,7 +447,7 @@ const mainTexture = root.createTexture({
   .$usage("render", "sampled");
 
 
-const simulation = PrepareSimulation(root, canvas, context, cameraUniform, bodies, rotationMatricesArray, bodiesRotationMatriciesBuffer, currentRotationArray);
+const simulation = PrepareSimulation(root, canvas, context, cameraUniform, bodies, rotationMatricesArray, bodiesRotationMatriciesBuffer, currentRotationArray, mainTexture);
 const shadows = PrepareShadows(root, canvas, context, positionVertexLayout, bodiesRenderData, cameraUniform, bodiesUniform, mainBindGroupLayout, mainBindGroup, positionsArray, 0);
 const bloomEffect = PrepareBloom(root, canvas, context, pixelScaleUniform);
 const atmosphere = PrepareAtmosphere(root, canvas, context, cameraUniform, bodies, bodiesUniform, bodiesPositionsBuffer, depthTexture, mainTexture);
@@ -508,7 +508,7 @@ function render()
     camera.setPosition(camera.state.pos.add(upVector.mul(collisionInfo.surfaceHeight - collisionInfo.distance + 0.02)));
   }
 
-  if (frame % (ORBIT_PREDICTION_STEPS / 2) === 0) {
+  if (frame % (ORBIT_PREDICTION_STEPS) === 0) {
     simulation.predictOrbits(positionsArray, velocitiesArray, bodies);
   }
 
@@ -539,20 +539,20 @@ function render()
       .draw(sphere.getVertexAmount(), 1);
   });
 
+  if (RENDER_ORBITS) {
+    simulation.renderOrbits(bodies);
+  }
+
   atmosphere.render();
 
   bloomEffect.applyGausianBlur();
   bloomEffect.render();
 
-  if (RENDER_ORBITS) {
-    simulation.renderOrbits(bodies);
-  }
-
   if (DEBUG_NORMALS) {
     bodiesRenderData.forEach((item, i) => {
       currentBodyIndexUniform.write(i);
       normalDebugPipeline
-        .withColorAttachment({ view: context, loadOp: "load", clearValue: { r: 0, g: 0, b: 0, a: 1 } })
+        .withColorAttachment({ view: context, loadOp: "load", clearValue: { r: 0, g: 0, b: 0, a: 0 } })
         .withDepthStencilAttachment({
           view: depthTexture,
           depthLoadOp: "load",

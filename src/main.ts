@@ -20,7 +20,7 @@ import tgpu, {
 } from "typegpu";
 import * as sphere from "./sphere";
 import { BODY_COUNT_CONST, CelestianBody, INITIAL_BODIES } from "./data/simulation-data";
-import { ATMOSPHERE_SHOW_PREBAKED_DEPTH, ATTACHED_BODY_INDEX, DEBUG_NORMALS, DEBUG_SHADOWS, NORMAL_OFFSET, ORBIT_PREDICTION_STEPS, PERLIN_EPSILON, PERLIN_STRENGTH, RENDER_ORBITS, SetAttachedBody, SHOW_DEPTH_CUBE, SIMULATION_SPEED } from "./data/settings";
+import { ATMOSPHERE_SHOW_PREBAKED_DEPTH, ATTACHED_BODY_INDEX, DEBUG_NORMALS, DEBUG_SHADOWS, NORMAL_OFFSET, ORBIT_PREDICTION_STEPS, PERLIN_EPSILON, PERLIN_STRENGTH, PULL_CAMERA, RENDER_ORBITS, SetAttachedBody, SHOW_DEPTH_CUBE, SIMULATION_SPEED } from "./data/settings";
 import { PrepareBloom } from "./postprocessing/bloom";
 import { bodiesToArrays, getBodyRotationSpeedInAngle, PrepareSimulation } from "./simulation";
 import { PrepareUI } from "./ui-controls";
@@ -153,6 +153,7 @@ const mainRenderPipeline = root.createRenderPipeline({
     "use gpu";
     const bodyIndex = currentBodyIndexUniform.$;
     const body = bodiesUniform.$[bodyIndex];
+
     const camera = cameraUniform.$;
     const offset = d.vec3f(
       mainBindGroupLayout.$.positions[bodyIndex * 3],
@@ -486,7 +487,10 @@ function render()
   findClosestBody();
   const collisionInfo = checkForCollision();
 
-  simulation.pullTowardsAttachedBody(positionsArray, camera, collisionInfo);
+  if(PULL_CAMERA)
+  {
+    simulation.pullTowardsAttachedBody(positionsArray, camera, collisionInfo);
+  }
 
   simulation.simulateGravity(positionsArray, velocitiesArray, bodies);
   simulation.simulateRotation();

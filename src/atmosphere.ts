@@ -87,8 +87,6 @@ export function PrepareAtmosphere(
         format: "rgba8unorm",
     }).$usage("render", "sampled");
 
-    const currentBodyIndexBuffer = root.createBuffer(d.i32).$usage("uniform");
-
     const atmosphereBindGroup = root.createBindGroup(atmosphereRenderLayout, {
         bodiesPositionsBuffer,
         texture: mainTexture,
@@ -290,7 +288,7 @@ export function PrepareAtmosphere(
     }
 
     function render() {
-        currentBodyIndexBuffer.write(ATTACHED_BODY_INDEX);
+        currentBodyIndexUniform.write(ATTACHED_BODY_INDEX);
         atmosphereRenderPipeline
             .withColorAttachment({ view: context })
             .with(atmosphereBindGroup)
@@ -346,7 +344,7 @@ export function PrepareAtmosphere(
     }
 
     function bakeOpticalDepth() {
-        currentBodyIndexBuffer.write(3); // TODO: loop through bodies
+        currentBodyIndexUniform.write(3); // TODO: loop through bodies
 
         bakeOpticalDepthPipeline
             .withColorAttachment({ view: opticalDepthTexture })

@@ -96,3 +96,8 @@ export function SetStrength(newStrength: number) {
 export function SetEpsilon(newEpsilon: number) {
   PERLIN_EPSILON = newEpsilon;
 }
+
+export let PULL_CAMERA = false;
+export function SetPullCamera(newPullCamera: boolean) {
+    PULL_CAMERA = newPullCamera;
+}

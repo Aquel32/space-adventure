@@ -1,4 +1,4 @@
-import { ATMOSPHERE_STEP_COUNT, DEBUG_NORMALS, DEBUG_SHADOWS, DEPTH_BIAS, GAUSIAN_ITERATIONS, GRAVITY_MULTIPLIER, NORMAL_OFFSET, PIXEL_SCALE, RENDER_ORBITS, SetAtmosphereStepCount, SetAttachedBody, SetDebugNormals, SetDebugShadows, SetDepthBias, SetGausianIterations, SetGravityMultiplier, SetNormalOffset, SetPixelScale, SetRenderOrbits, SetShowDepthCube, SetSimulationSpeed, SHOW_DEPTH_CUBE, SIMULATION_SPEED, ATMOSPHERE_SHOW_PREBAKED_DEPTH, SetShowPrebakedDepth, PERLIN_EPSILON, PERLIN_STRENGTH, SetStrength, SetEpsilon } from "./data/settings";
+import { ATMOSPHERE_STEP_COUNT, DEBUG_NORMALS, DEBUG_SHADOWS, DEPTH_BIAS, GAUSIAN_ITERATIONS, GRAVITY_MULTIPLIER, NORMAL_OFFSET, PIXEL_SCALE, RENDER_ORBITS, SetAtmosphereStepCount, SetAttachedBody, SetDebugNormals, SetDebugShadows, SetDepthBias, SetGausianIterations, SetGravityMultiplier, SetNormalOffset, SetPixelScale, SetRenderOrbits, SetShowDepthCube, SetSimulationSpeed, SHOW_DEPTH_CUBE, SIMULATION_SPEED, ATMOSPHERE_SHOW_PREBAKED_DEPTH, SetShowPrebakedDepth, PERLIN_EPSILON, PERLIN_STRENGTH, SetStrength, SetEpsilon, PULL_CAMERA, SetPullCamera } from "./data/settings";
 import { INITIAL_BODIES } from "./data/simulation-data";
 import { ReloadSettings, SetUpBodiesRenderData } from "./main";
 
@@ -17,6 +17,7 @@ export function PrepareUI() {
             <label>Gravity Multiplier: <input name="gravity" type="number" class="g reload" value="${GRAVITY_MULTIPLIER}" /></label>
             <label>Simulation Speed: <input name="simulation-speed" type="number" class="ss" value="${SIMULATION_SPEED}" /></label>
             <label>Attached Body: <input name="attached-body" type="number" class="ab" value="${3}" /></label>
+            <label>Pull Camera: <input name="pull-camera" type="checkbox" class="pc" ${PULL_CAMERA ? "checked" : ""} /></label>
           </div>
           <button class="tab-button" tab="bloom">Bloom</button>
           <div class="tab" id="bloom">
@@ -179,6 +180,11 @@ export function PrepareUI() {
     document.querySelector(".spd")!.addEventListener("change", (e) => {
       const newShowPrebakedDepth = (e.target as HTMLInputElement).checked;
       SetShowPrebakedDepth(newShowPrebakedDepth);
+    });
+
+    document.querySelector(".pc")!.addEventListener("change", (e) => {
+      const newPullCamera = (e.target as HTMLInputElement).checked;
+      SetPullCamera(newPullCamera);
     });
 
     document.querySelectorAll(".body").forEach((control, i) => {

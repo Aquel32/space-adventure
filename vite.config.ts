@@ -3,4 +3,5 @@ import typegpu from "unplugin-typegpu/vite";
 
 export default defineConfig({
   plugins: [typegpu({})],
+  base: "/space-adventure/"
 });

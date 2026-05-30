@@ -1,9 +1,8 @@
 import { d, std, tgpu, type TgpuRoot, type TgpuUniform } from "typegpu";
-import { GAUSIAN_ITERATIONS, PIXEL_SCALE } from "../data/settings";
+import type { Settings } from "../main";
 
-export function PrepareBloom(root: TgpuRoot, canvas: HTMLCanvasElement, context: GPUCanvasContext, pixelScaleUniform: TgpuUniform<d.F32>
-) {
-    pixelScaleUniform.write(PIXEL_SCALE);
+export function PrepareBloom(root: TgpuRoot, canvas: HTMLCanvasElement, context: GPUCanvasContext, pixelScaleUniform: TgpuUniform<d.F32>, settings: Settings) {
+    pixelScaleUniform.write(settings.PIXEL_SCALE);
 
     const blurBindGroundLayout = tgpu.bindGroupLayout({
         isHorizontal: { storage: d.i32, access: "readonly" },
@@ -158,7 +157,7 @@ export function PrepareBloom(root: TgpuRoot, canvas: HTMLCanvasElement, context:
 
     function applyGausianBlur() {
         mainEmmisionTexture.generateMipmaps();
-        for (let i = 0; i < GAUSIAN_ITERATIONS * 2; i++) {
+        for (let i = 0; i < settings.GAUSIAN_ITERATIONS * 2; i++) {
             const targetView = i % 2 === 0 ? currentEmmisionTexture : mainEmmisionTexture;
             const targetBindGroup = i % 2 === 0 ? mainBlurBindGroup : currentBlurBindGroup;
 

@@ -1,103 +1,6 @@
 import tgpu, { d, std } from "typegpu";
 import type { v3f } from "typegpu/data";
-import { GRAVITY_MULTIPLIER } from "./settings";
-
-function calculateStableOrbitVelocity(distance: number, mass: number) {
-  return std.sqrt((GRAVITY_MULTIPLIER * mass) / distance);
-}
-
-const SUN_MASS = 1.0;
-
-const MERCURY_MASS = 1.66e-7;
-const MERCURY_INITIAL_VELOCITY = d.vec3f(0, 0, 0.0321);
-
-const VENUS_MASS = 2.45e-6;
-const VENUS_INITIAL_VELOCITY = d.vec3f(0, 0, 0.0235);
-
-const EARTH_MASS = 3.003e-6;
-const EARTH_DISTANCE = 100;
-const EARTH_ORBIT_VELOCITY = calculateStableOrbitVelocity(EARTH_DISTANCE, SUN_MASS);
-const EARTH_INITIAL_VELOCITY = d.vec3f(0, 0, EARTH_ORBIT_VELOCITY);
-
-const MOON_MASS = 3.69e-8;
-const MOON_BASE_ORBIT_RADIUS = EARTH_DISTANCE * (384400 / 149597870);
-// Visual exaggeration so the moon does not appear glued to Earth at current render scale.
-// Keep this below ~3.9 to stay inside Earth's Hill sphere in this setup.
-const MOON_ORBIT_DISTANCE_SCALE = 3;
-const MOON_ORBIT_RADIUS = MOON_BASE_ORBIT_RADIUS * MOON_ORBIT_DISTANCE_SCALE;
-const MOON_ORBIT_VELOCITY = calculateStableOrbitVelocity(MOON_ORBIT_RADIUS, EARTH_MASS);
-const MOON_INITIAL_VELOCITY = d.vec3f(0, 0, EARTH_ORBIT_VELOCITY + MOON_ORBIT_VELOCITY);
-
-const MARS_MASS = 3.23e-7;
-const MARS_INITIAL_VELOCITY = d.vec3f(0, 0, 0.0162);
-
-const JUPITER_MASS = 9.54e-4;
-const JUPITER_INITIAL_VELOCITY = d.vec3f(0, 0, 0.00877);
-
-const SATURN_MASS = 2.86e-4;
-const SATURN_INITIAL_VELOCITY = d.vec3f(0, 0, 0.00646);
-
-const URANUS_MASS = 4.37e-5;
-const URANUS_INITIAL_VELOCITY = d.vec3f(0, 0, 0.00457);
-
-const NEPTUNE_MASS = 5.15e-5;
-const NEPTUNE_INITIAL_VELOCITY = d.vec3f(0, 0, 0.00365);
-
-const EARTH_RENDER_RADIUS = 0.15;
-
-function scaleRadiusFromEarth(realRadiusKm: number) {
-  return (realRadiusKm / 6371) * EARTH_RENDER_RADIUS;
-}
-
-const SUN_RENDER_RADIUS = scaleRadiusFromEarth(696340);
-const MERCURY_RENDER_RADIUS = scaleRadiusFromEarth(2439.7);
-const VENUS_RENDER_RADIUS = scaleRadiusFromEarth(6051.8);
-const EARTH_BODY_RENDER_RADIUS = scaleRadiusFromEarth(6371);
-const MOON_RENDER_RADIUS = scaleRadiusFromEarth(1737.4);
-// const MARS_RENDER_RADIUS = scaleRadiusFromEarth(3389.5);
-const JUPITER_RENDER_RADIUS = scaleRadiusFromEarth(69911);
-const SATURN_RENDER_RADIUS = scaleRadiusFromEarth(58232);
-const URANUS_RENDER_RADIUS = scaleRadiusFromEarth(25362);
-const NEPTUNE_RENDER_RADIUS = scaleRadiusFromEarth(24622);
-
-function calculateMomentumBalancedSunVelocity(
-  otherBodies: ReadonlyArray<{ mass: number; velocity: v3f }>,
-  sunMass: number,
-) {
-  const totalMomentum = otherBodies.reduce(
-    (momentum, body) => ({
-      x: momentum.x + body.mass * body.velocity.x,
-      y: momentum.y + body.mass * body.velocity.y,
-      z: momentum.z + body.mass * body.velocity.z,
-    }),
-    { x: 0, y: 0, z: 0 },
-  );
-
-  return d.vec3f(
-    -totalMomentum.x / sunMass,
-    -totalMomentum.y / sunMass,
-    -totalMomentum.z / sunMass,
-  );
-}
-
-const SUN_INITIAL_VELOCITY = calculateMomentumBalancedSunVelocity(
-  [
-    { mass: MERCURY_MASS, velocity: MERCURY_INITIAL_VELOCITY },
-    { mass: VENUS_MASS, velocity: VENUS_INITIAL_VELOCITY },
-    { mass: EARTH_MASS, velocity: EARTH_INITIAL_VELOCITY },
-    { mass: MOON_MASS, velocity: MOON_INITIAL_VELOCITY },
-    { mass: MARS_MASS, velocity: MARS_INITIAL_VELOCITY },
-    { mass: JUPITER_MASS, velocity: JUPITER_INITIAL_VELOCITY },
-    { mass: SATURN_MASS, velocity: SATURN_INITIAL_VELOCITY },
-    { mass: URANUS_MASS, velocity: URANUS_INITIAL_VELOCITY },
-    { mass: NEPTUNE_MASS, velocity: NEPTUNE_INITIAL_VELOCITY },
-  ],
-  SUN_MASS,
-);
-
-// 100 distance = 1 Au
-// 1 velocity = 1,490km/s
-// 1 mass = mass of sun
+import type { Settings } from "../main";
 
 const SurfaceColorData = d.struct({
   color: d.vec4f,
@@ -123,217 +26,318 @@ export const CelestianBody = d.struct({
   atmosphere: AtmosphereSettings,
 });
 
-export const INITIAL_BODIES = d.arrayOf(
-  CelestianBody,
-  10,
-)([
-  // Sun
-  {
-    position: d.vec3f(0, 0, 0),
-    radius: SUN_RENDER_RADIUS,
-    rotationSpeed: d.f32(0),
-    colors: [
-      { color: d.vec4f(1), height: 0.9 },
-      { color: d.vec4f(1), height: 0.988 },
-      { color: d.vec4f(1), height: 1.075 },
-    ],
-    velocity: SUN_INITIAL_VELOCITY,
-    mass: SUN_MASS,
-    isSphere: d.u32(1),
-    atmosphere: {
-      enabled: d.u32(0),
-      atmosphereRadius: d.f32(0),
-      scatteringStrength: d.f32(0),
-      densityFalloff: d.f32(0),
-      wavelengths: d.vec3f(0, 0, 0),
-    },
-  },
+export function prepareSimulationData(settings: Settings) {
+  function calculateStableOrbitVelocity(distance: number, mass: number) {
+    return std.sqrt((settings.GRAVITY_MULTIPLIER * mass) / distance);
+  }
 
-  {
-    position: d.vec3f(38.7, 0, 0),
-    radius: MERCURY_RENDER_RADIUS,
-    // radius: 2,
-    rotationSpeed: d.f32(0.1),
-    colors: [
-      { color: d.vec4f(0.24, 0.23, 0.22, 1), height: 0.90 },
-      { color: d.vec4f(0.56, 0.53, 0.5, 1), height: 0.988 },
-      { color: d.vec4f(0.78, 0.75, 0.72, 1), height: 1.075 },
+  const SUN_MASS = 1.0;
+
+  const MERCURY_MASS = 1.66e-7;
+  const MERCURY_INITIAL_VELOCITY = d.vec3f(0, 0, 0.0321);
+
+  const VENUS_MASS = 2.45e-6;
+  const VENUS_INITIAL_VELOCITY = d.vec3f(0, 0, 0.0235);
+
+  const EARTH_MASS = 3.003e-6;
+  const EARTH_DISTANCE = 100;
+  const EARTH_ORBIT_VELOCITY = calculateStableOrbitVelocity(EARTH_DISTANCE, SUN_MASS);
+  const EARTH_INITIAL_VELOCITY = d.vec3f(0, 0, EARTH_ORBIT_VELOCITY);
+
+  const MOON_MASS = 3.69e-8;
+  const MOON_BASE_ORBIT_RADIUS = EARTH_DISTANCE * (384400 / 149597870);
+  // Visual exaggeration so the moon does not appear glued to Earth at current render scale.
+  // Keep this below ~3.9 to stay inside Earth's Hill sphere in this setup.
+  const MOON_ORBIT_DISTANCE_SCALE = 3;
+  const MOON_ORBIT_RADIUS = MOON_BASE_ORBIT_RADIUS * MOON_ORBIT_DISTANCE_SCALE;
+  const MOON_ORBIT_VELOCITY = calculateStableOrbitVelocity(MOON_ORBIT_RADIUS, EARTH_MASS);
+  const MOON_INITIAL_VELOCITY = d.vec3f(0, 0, EARTH_ORBIT_VELOCITY + MOON_ORBIT_VELOCITY);
+
+  const MARS_MASS = 3.23e-7;
+  const MARS_INITIAL_VELOCITY = d.vec3f(0, 0, 0.0162);
+
+  const JUPITER_MASS = 9.54e-4;
+  const JUPITER_INITIAL_VELOCITY = d.vec3f(0, 0, 0.00877);
+
+  const SATURN_MASS = 2.86e-4;
+  const SATURN_INITIAL_VELOCITY = d.vec3f(0, 0, 0.00646);
+
+  const URANUS_MASS = 4.37e-5;
+  const URANUS_INITIAL_VELOCITY = d.vec3f(0, 0, 0.00457);
+
+  const NEPTUNE_MASS = 5.15e-5;
+  const NEPTUNE_INITIAL_VELOCITY = d.vec3f(0, 0, 0.00365);
+
+  const EARTH_RENDER_RADIUS = 0.15;
+
+  function scaleRadiusFromEarth(realRadiusKm: number) {
+    return (realRadiusKm / 6371) * EARTH_RENDER_RADIUS;
+  }
+
+  const SUN_RENDER_RADIUS = scaleRadiusFromEarth(696340);
+  const MERCURY_RENDER_RADIUS = scaleRadiusFromEarth(2439.7);
+  const VENUS_RENDER_RADIUS = scaleRadiusFromEarth(6051.8);
+  const EARTH_BODY_RENDER_RADIUS = scaleRadiusFromEarth(6371);
+  const MOON_RENDER_RADIUS = scaleRadiusFromEarth(1737.4);
+  // const MARS_RENDER_RADIUS = scaleRadiusFromEarth(3389.5);
+  const JUPITER_RENDER_RADIUS = scaleRadiusFromEarth(69911);
+  const SATURN_RENDER_RADIUS = scaleRadiusFromEarth(58232);
+  const URANUS_RENDER_RADIUS = scaleRadiusFromEarth(25362);
+  const NEPTUNE_RENDER_RADIUS = scaleRadiusFromEarth(24622);
+
+  function calculateMomentumBalancedSunVelocity(
+    otherBodies: ReadonlyArray<{ mass: number; velocity: v3f }>,
+    sunMass: number,
+  ) {
+    const totalMomentum = otherBodies.reduce(
+      (momentum, body) => ({
+        x: momentum.x + body.mass * body.velocity.x,
+        y: momentum.y + body.mass * body.velocity.y,
+        z: momentum.z + body.mass * body.velocity.z,
+      }),
+      { x: 0, y: 0, z: 0 },
+    );
+
+    return d.vec3f(
+      -totalMomentum.x / sunMass,
+      -totalMomentum.y / sunMass,
+      -totalMomentum.z / sunMass,
+    );
+  }
+
+  const SUN_INITIAL_VELOCITY = calculateMomentumBalancedSunVelocity(
+    [
+      { mass: MERCURY_MASS, velocity: MERCURY_INITIAL_VELOCITY },
+      { mass: VENUS_MASS, velocity: VENUS_INITIAL_VELOCITY },
+      { mass: EARTH_MASS, velocity: EARTH_INITIAL_VELOCITY },
+      { mass: MOON_MASS, velocity: MOON_INITIAL_VELOCITY },
+      { mass: MARS_MASS, velocity: MARS_INITIAL_VELOCITY },
+      { mass: JUPITER_MASS, velocity: JUPITER_INITIAL_VELOCITY },
+      { mass: SATURN_MASS, velocity: SATURN_INITIAL_VELOCITY },
+      { mass: URANUS_MASS, velocity: URANUS_INITIAL_VELOCITY },
+      { mass: NEPTUNE_MASS, velocity: NEPTUNE_INITIAL_VELOCITY },
     ],
-    velocity: MERCURY_INITIAL_VELOCITY,
-    mass: MERCURY_MASS,
-    isSphere: d.u32(0),
-    atmosphere: {
-      enabled: d.u32(0),
-      atmosphereRadius: d.f32(0),
-      scatteringStrength: d.f32(0),
-      densityFalloff: d.f32(0),
-      wavelengths: d.vec3f(0, 0, 0),
+    SUN_MASS,
+  );
+
+  // 100 distance = 1 Au
+  // 1 velocity = 1,490km/s
+  // 1 mass = mass of sun
+
+  const INITIAL_BODIES = d.arrayOf(
+    CelestianBody,
+    10,
+  )([
+    // Sun
+    {
+      position: d.vec3f(0, 0, 0),
+      radius: SUN_RENDER_RADIUS,
+      rotationSpeed: d.f32(0),
+      colors: [
+        { color: d.vec4f(1), height: 0.9 },
+        { color: d.vec4f(1), height: 0.988 },
+        { color: d.vec4f(1), height: 1.075 },
+      ],
+      velocity: SUN_INITIAL_VELOCITY,
+      mass: SUN_MASS,
+      isSphere: d.u32(1),
+      atmosphere: {
+        enabled: d.u32(0),
+        atmosphereRadius: d.f32(0),
+        scatteringStrength: d.f32(0),
+        densityFalloff: d.f32(0),
+        wavelengths: d.vec3f(0, 0, 0),
+      },
     },
-  }, // Mercury
-  {
-    position: d.vec3f(72.3, 0, 0),
-    radius: VENUS_RENDER_RADIUS,
-    // radius: 6,
-    rotationSpeed: d.f32(-0.1),
-    colors: [
-      { color: d.vec4f(0.45, 0.3, 0.16, 1), height: 0.90 },
-      { color: d.vec4f(0.82, 0.65, 0.39, 1), height: 0.988 },
-      { color: d.vec4f(0.96, 0.9, 0.72, 1), height: 1.075 },
-    ],
-    velocity: VENUS_INITIAL_VELOCITY,
-    mass: VENUS_MASS,
-    isSphere: d.u32(0),
-    atmosphere: {
-      enabled: d.u32(1),
-      atmosphereRadius: VENUS_RENDER_RADIUS + 0.15,
-      scatteringStrength: d.f32(25),
-      densityFalloff: d.f32(2),
-      wavelengths: d.vec3f(750, 550, 450),
-    },
-  }, // Venus
-  {
-    position: d.vec3f(EARTH_DISTANCE, 0, 0),
-    radius: EARTH_BODY_RENDER_RADIUS,
-    // radius: 5,
-    rotationSpeed: d.f32(0.1),
-    colors: [
-      { color: d.vec4f(0.18, 0.42, 0.72, 1), height: 0.90 },
-      { color: d.vec4f(0.06, 0.2, 0.08, 1), height: 1 },
-      { color: d.vec4f(0.9, 0.95, 1.0, 1), height: 1.06 },
-    ],
-    velocity: EARTH_INITIAL_VELOCITY,
-    mass: EARTH_MASS,
-    isSphere: d.u32(0),
-    atmosphere: {
-      enabled: d.u32(1),
-      atmosphereRadius: EARTH_BODY_RENDER_RADIUS + 0.1,
-      scatteringStrength: d.f32(10),
-      densityFalloff: d.f32(4),
-      wavelengths: d.vec3f(700, 530, 440),
-    },
-  }, // Earth
-  {
-    position: d.vec3f(EARTH_DISTANCE, MOON_ORBIT_RADIUS, 0),
-    radius: MOON_RENDER_RADIUS,
-    // radius: 1,
-    rotationSpeed: d.f32(0.1),
-    colors: [
-      { color: d.vec4f(0.2, 0.2, 0.18, 1), height: 0.90 },
-      { color: d.vec4f(0.24, 0.24, 0.22, 1), height: 0.988 },
-      { color: d.vec4f(0.32, 0.32, 0.3, 1), height: 1.070 },
-    ],
-    velocity: MOON_INITIAL_VELOCITY,
-    mass: MOON_MASS,
-    isSphere: d.u32(0),
-    atmosphere: {
-      enabled: d.u32(0),
-      atmosphereRadius: d.f32(0),
-      scatteringStrength: d.f32(0),
-      densityFalloff: d.f32(0),
-      wavelengths: d.vec3f(0, 0, 0),
-    },
-  }, // Moon
-  {
-    position: d.vec3f(152.4, 0, 0),
-    radius: 0.1,
-    // radius: 20,
-    rotationSpeed: d.f32(0.1),
-    colors: [
-      { color: d.vec4f(0.3, 0.12, 0.08, 1), height: 0.90 },
-      { color: d.vec4f(0.66, 0.31, 0.22, 1), height: 0.988 },
-      { color: d.vec4f(0.9, 0.63, 0.48, 1), height: 1.075 },
-    ],
-    velocity: MARS_INITIAL_VELOCITY,
-    mass: MARS_MASS,
-    isSphere: d.u32(0),
-    atmosphere: {
-      enabled: d.u32(1),
-      atmosphereRadius: 0.1 + 0.05,
-      scatteringStrength: d.f32(6),
-      densityFalloff: d.f32(7),
-      wavelengths: d.vec3f(470, 600, 800),
-    },
-  }, // Mars
-  {
-    position: d.vec3f(520.3, 0, 0),
-    radius: JUPITER_RENDER_RADIUS,
-    // radius: 60,
-    rotationSpeed: d.f32(0.1),
-    colors: [
-      { color: d.vec4f(0.43, 0.29, 0.2, 1), height: 0.90 },
-      { color: d.vec4f(0.75, 0.57, 0.43, 1), height: 0.988 },
-      { color: d.vec4f(0.95, 0.84, 0.68, 1), height: 1.075 },
-    ],
-    velocity: JUPITER_INITIAL_VELOCITY,
-    mass: JUPITER_MASS,
-    isSphere: d.u32(0),
-    atmosphere: {
-      enabled: d.u32(1),
-      atmosphereRadius: JUPITER_RENDER_RADIUS + 0.12,
-      scatteringStrength: d.f32(18),
-      densityFalloff: d.f32(3),
-      wavelengths: d.vec3f(710, 520, 450),
-    },
-  }, // Jupiter
-  {
-    position: d.vec3f(958.2, 0, 0),
-    radius: SATURN_RENDER_RADIUS,
-    rotationSpeed: d.f32(2),
-    colors: [
-      { color: d.vec4f(0.46, 0.38, 0.24, 1), height: 0.90 },
-      { color: d.vec4f(0.8, 0.69, 0.46, 1), height: 0.988 },
-      { color: d.vec4f(0.97, 0.9, 0.74, 1), height: 1.075 },
-    ],
-    velocity: SATURN_INITIAL_VELOCITY,
-    mass: SATURN_MASS,
-    isSphere: d.u32(0),
-    atmosphere: {
-      enabled: d.u32(1),
-      atmosphereRadius: SATURN_RENDER_RADIUS + 0.1,
-      scatteringStrength: d.f32(16),
-      densityFalloff: d.f32(3),
-      wavelengths: d.vec3f(700, 530, 450),
-    },
-  }, // Saturn
-  {
-    position: d.vec3f(1918, 0, 0),
-    radius: URANUS_RENDER_RADIUS,
-    rotationSpeed: d.f32(-1),
-    colors: [
-      { color: d.vec4f(0.23, 0.48, 0.58, 1), height: 0.90 },
-      { color: d.vec4f(0.46, 0.74, 0.82, 1), height: 0.988 },
-      { color: d.vec4f(0.78, 0.93, 0.95, 1), height: 1.075 },
-    ],
-    velocity: URANUS_INITIAL_VELOCITY,
-    mass: URANUS_MASS,
-    isSphere: d.u32(0),
-    atmosphere: {
-      enabled: d.u32(1),
-      atmosphereRadius: URANUS_RENDER_RADIUS + 0.1,
-      scatteringStrength: d.f32(14),
-      densityFalloff: d.f32(3),
-      wavelengths: d.vec3f(480, 510, 620),
-    },
-  }, // Uranus
-  {
-    position: d.vec3f(3007, 0, 0),
-    radius: NEPTUNE_RENDER_RADIUS,
-    rotationSpeed: d.f32(1),
-    colors: [
-      { color: d.vec4f(0.06, 0.1, 0.39, 1), height: 0.90 },
-      { color: d.vec4f(0.18, 0.34, 0.74, 1), height: 0.988 },
-      { color: d.vec4f(0.47, 0.68, 0.95, 1), height: 1.075 },
-    ],
-    velocity: NEPTUNE_INITIAL_VELOCITY,
-    mass: NEPTUNE_MASS,
-    isSphere: d.u32(0),
-    atmosphere: {
-      enabled: d.u32(1),
-      atmosphereRadius: NEPTUNE_RENDER_RADIUS + 0.1,
-      scatteringStrength: d.f32(15),
-      densityFalloff: d.f32(3),
-      wavelengths: d.vec3f(450, 510, 620),
-    },
-  }, // Neptune
-]);
-export const BODY_COUNT_CONST = tgpu.const(d.i32, INITIAL_BODIES.length);
+
+    {
+      position: d.vec3f(38.7, 0, 0),
+      radius: MERCURY_RENDER_RADIUS,
+      // radius: 2,
+      rotationSpeed: d.f32(0.1),
+      colors: [
+        { color: d.vec4f(0.24, 0.23, 0.22, 1), height: 0.90 },
+        { color: d.vec4f(0.56, 0.53, 0.5, 1), height: 0.988 },
+        { color: d.vec4f(0.78, 0.75, 0.72, 1), height: 1.075 },
+      ],
+      velocity: MERCURY_INITIAL_VELOCITY,
+      mass: MERCURY_MASS,
+      isSphere: d.u32(0),
+      atmosphere: {
+        enabled: d.u32(0),
+        atmosphereRadius: d.f32(0),
+        scatteringStrength: d.f32(0),
+        densityFalloff: d.f32(0),
+        wavelengths: d.vec3f(0, 0, 0),
+      },
+    }, // Mercury
+    {
+      position: d.vec3f(72.3, 0, 0),
+      radius: VENUS_RENDER_RADIUS,
+      // radius: 6,
+      rotationSpeed: d.f32(-0.1),
+      colors: [
+        { color: d.vec4f(0.45, 0.3, 0.16, 1), height: 0.90 },
+        { color: d.vec4f(0.82, 0.65, 0.39, 1), height: 0.988 },
+        { color: d.vec4f(0.96, 0.9, 0.72, 1), height: 1.075 },
+      ],
+      velocity: VENUS_INITIAL_VELOCITY,
+      mass: VENUS_MASS,
+      isSphere: d.u32(0),
+      atmosphere: {
+        enabled: d.u32(1),
+        atmosphereRadius: VENUS_RENDER_RADIUS + 0.15,
+        scatteringStrength: d.f32(25),
+        densityFalloff: d.f32(2),
+        wavelengths: d.vec3f(750, 550, 450),
+      },
+    }, // Venus
+    {
+      position: d.vec3f(EARTH_DISTANCE, 0, 0),
+      radius: EARTH_BODY_RENDER_RADIUS,
+      // radius: 5,
+      rotationSpeed: d.f32(0.1),
+      colors: [
+        { color: d.vec4f(0.18, 0.42, 0.72, 1), height: 0.90 },
+        { color: d.vec4f(0.06, 0.2, 0.08, 1), height: 1 },
+        { color: d.vec4f(0.9, 0.95, 1.0, 1), height: 1.06 },
+      ],
+      velocity: EARTH_INITIAL_VELOCITY,
+      mass: EARTH_MASS,
+      isSphere: d.u32(0),
+      atmosphere: {
+        enabled: d.u32(1),
+        atmosphereRadius: EARTH_BODY_RENDER_RADIUS + 0.1,
+        scatteringStrength: d.f32(10),
+        densityFalloff: d.f32(4),
+        wavelengths: d.vec3f(700, 530, 440),
+      },
+    }, // Earth
+    {
+      position: d.vec3f(EARTH_DISTANCE, MOON_ORBIT_RADIUS, 0),
+      radius: MOON_RENDER_RADIUS,
+      // radius: 1,
+      rotationSpeed: d.f32(0.1),
+      colors: [
+        { color: d.vec4f(0.2, 0.2, 0.18, 1), height: 0.90 },
+        { color: d.vec4f(0.24, 0.24, 0.22, 1), height: 0.988 },
+        { color: d.vec4f(0.32, 0.32, 0.3, 1), height: 1.070 },
+      ],
+      velocity: MOON_INITIAL_VELOCITY,
+      mass: MOON_MASS,
+      isSphere: d.u32(0),
+      atmosphere: {
+        enabled: d.u32(0),
+        atmosphereRadius: d.f32(0),
+        scatteringStrength: d.f32(0),
+        densityFalloff: d.f32(0),
+        wavelengths: d.vec3f(0, 0, 0),
+      },
+    }, // Moon
+    {
+      position: d.vec3f(152.4, 0, 0),
+      radius: 0.1,
+      // radius: 20,
+      rotationSpeed: d.f32(0.1),
+      colors: [
+        { color: d.vec4f(0.3, 0.12, 0.08, 1), height: 0.90 },
+        { color: d.vec4f(0.66, 0.31, 0.22, 1), height: 0.988 },
+        { color: d.vec4f(0.9, 0.63, 0.48, 1), height: 1.075 },
+      ],
+      velocity: MARS_INITIAL_VELOCITY,
+      mass: MARS_MASS,
+      isSphere: d.u32(0),
+      atmosphere: {
+        enabled: d.u32(1),
+        atmosphereRadius: 0.1 + 0.05,
+        scatteringStrength: d.f32(6),
+        densityFalloff: d.f32(7),
+        wavelengths: d.vec3f(470, 600, 800),
+      },
+    }, // Mars
+    {
+      position: d.vec3f(520.3, 0, 0),
+      radius: JUPITER_RENDER_RADIUS,
+      // radius: 60,
+      rotationSpeed: d.f32(0.1),
+      colors: [
+        { color: d.vec4f(0.43, 0.29, 0.2, 1), height: 0.90 },
+        { color: d.vec4f(0.75, 0.57, 0.43, 1), height: 0.988 },
+        { color: d.vec4f(0.95, 0.84, 0.68, 1), height: 1.075 },
+      ],
+      velocity: JUPITER_INITIAL_VELOCITY,
+      mass: JUPITER_MASS,
+      isSphere: d.u32(0),
+      atmosphere: {
+        enabled: d.u32(1),
+        atmosphereRadius: JUPITER_RENDER_RADIUS + 0.12,
+        scatteringStrength: d.f32(18),
+        densityFalloff: d.f32(3),
+        wavelengths: d.vec3f(710, 520, 450),
+      },
+    }, // Jupiter
+    {
+      position: d.vec3f(958.2, 0, 0),
+      radius: SATURN_RENDER_RADIUS,
+      rotationSpeed: d.f32(2),
+      colors: [
+        { color: d.vec4f(0.46, 0.38, 0.24, 1), height: 0.90 },
+        { color: d.vec4f(0.8, 0.69, 0.46, 1), height: 0.988 },
+        { color: d.vec4f(0.97, 0.9, 0.74, 1), height: 1.075 },
+      ],
+      velocity: SATURN_INITIAL_VELOCITY,
+      mass: SATURN_MASS,
+      isSphere: d.u32(0),
+      atmosphere: {
+        enabled: d.u32(1),
+        atmosphereRadius: SATURN_RENDER_RADIUS + 0.1,
+        scatteringStrength: d.f32(16),
+        densityFalloff: d.f32(3),
+        wavelengths: d.vec3f(700, 530, 450),
+      },
+    }, // Saturn
+    {
+      position: d.vec3f(1918, 0, 0),
+      radius: URANUS_RENDER_RADIUS,
+      rotationSpeed: d.f32(-1),
+      colors: [
+        { color: d.vec4f(0.23, 0.48, 0.58, 1), height: 0.90 },
+        { color: d.vec4f(0.46, 0.74, 0.82, 1), height: 0.988 },
+        { color: d.vec4f(0.78, 0.93, 0.95, 1), height: 1.075 },
+      ],
+      velocity: URANUS_INITIAL_VELOCITY,
+      mass: URANUS_MASS,
+      isSphere: d.u32(0),
+      atmosphere: {
+        enabled: d.u32(1),
+        atmosphereRadius: URANUS_RENDER_RADIUS + 0.1,
+        scatteringStrength: d.f32(14),
+        densityFalloff: d.f32(3),
+        wavelengths: d.vec3f(480, 510, 620),
+      },
+    }, // Uranus
+    {
+      position: d.vec3f(3007, 0, 0),
+      radius: NEPTUNE_RENDER_RADIUS,
+      rotationSpeed: d.f32(1),
+      colors: [
+        { color: d.vec4f(0.06, 0.1, 0.39, 1), height: 0.90 },
+        { color: d.vec4f(0.18, 0.34, 0.74, 1), height: 0.988 },
+        { color: d.vec4f(0.47, 0.68, 0.95, 1), height: 1.075 },
+      ],
+      velocity: NEPTUNE_INITIAL_VELOCITY,
+      mass: NEPTUNE_MASS,
+      isSphere: d.u32(0),
+      atmosphere: {
+        enabled: d.u32(1),
+        atmosphereRadius: NEPTUNE_RENDER_RADIUS + 0.1,
+        scatteringStrength: d.f32(15),
+        densityFalloff: d.f32(3),
+        wavelengths: d.vec3f(450, 510, 620),
+      },
+    }, // Neptune
+  ]);
+ const BODY_COUNT_CONST = tgpu.const(d.i32, INITIAL_BODIES.length);
+
+ return { INITIAL_BODIES, BODY_COUNT_CONST };
+}

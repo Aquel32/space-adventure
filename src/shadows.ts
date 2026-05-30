@@ -1,9 +1,8 @@
 import tgpu, { d, std, type StorageFlag, type TgpuBindGroup, type TgpuBindGroupLayout, type TgpuBuffer, type TgpuRoot, type TgpuUniform, type TgpuVertexLayout, type VertexFlag } from "typegpu";
 import * as m from "wgpu-matrix";
 import { calculateProj, calculateView } from "./setup-first-person-camera";
-import { getVertexAmount } from "./sphere";
 import { fullScreenTriangle } from "typegpu/common";
-import { DEPTH_BIAS } from "./data/settings";
+import type { Settings } from "./main";
 
 const FACE_CONFIGS = [
     { name: 'right', dir: d.vec3f(-1, 0, 0), up: d.vec3f(0, 1, 0) },
@@ -68,8 +67,9 @@ export function PrepareShadows(
     }>
     ,
     positions: Float32Array,
-    sourceIndex: number
-
+    sourceIndex: number,
+    settings: Settings,
+    getVertexAmount: () => number,
 ) {
     const shadowMap = root.createTexture({
         size: [1024 * 8, 1024 * 8, 6],
@@ -105,7 +105,7 @@ export function PrepareShadows(
     const currentBodyIndexUniform = root.createUniform(d.i32);
     const sourcePositionUniform = root.createUniform(d.vec3f);
     const depthBiasUniform = root.createUniform(d.f32);
-    depthBiasUniform.write(DEPTH_BIAS);
+    depthBiasUniform.write(settings.DEPTH_BIAS);
 
     const shadowsBindGroup = root.createBindGroup(shadowsBindGroupLayout, {
         texture: shadowMap,
@@ -275,7 +275,7 @@ export function PrepareShadows(
     }
 
     function reloadSettings() {
-        depthBiasUniform.write(DEPTH_BIAS);
+        depthBiasUniform.write(settings.DEPTH_BIAS);
     }
 
     return {

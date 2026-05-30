@@ -1,10 +1,7 @@
-import { ATMOSPHERE_STEP_COUNT, DEBUG_NORMALS, DEBUG_SHADOWS, DEPTH_BIAS, GAUSIAN_ITERATIONS, GRAVITY_MULTIPLIER, NORMAL_OFFSET, PIXEL_SCALE, RENDER_ORBITS, SetAtmosphereStepCount, SetAttachedBody, SetDebugNormals, SetDebugShadows, SetDepthBias, SetGausianIterations, SetGravityMultiplier, SetNormalOffset, SetPixelScale, SetRenderOrbits, SetShowDepthCube, SetSimulationSpeed, SHOW_DEPTH_CUBE, SIMULATION_SPEED, ATMOSPHERE_SHOW_PREBAKED_DEPTH, SetShowPrebakedDepth, PERLIN_EPSILON, PERLIN_STRENGTH, SetStrength, SetEpsilon, PULL_CAMERA, SetPullCamera } from "./data/settings";
-import { INITIAL_BODIES } from "./data/simulation-data";
-import { ReloadSettings, SetUpBodiesRenderData } from "./main";
-
-export function PrepareUI() {
+export function PrepareUI(
+  settings: any,
+) {
   let controlsSetUp = false;
-
   document.querySelector("main")!.innerHTML += `<section id="controls">
         <div class="other">
           <p id="fps">FPS: 000</p>
@@ -14,37 +11,37 @@ export function PrepareUI() {
           <label>Camera speed: <input name="camera-speed" type="number" class="cs" value="1" disabled /></label>
           <button class="tab-button" tab="simulation">Gravity</button>
           <div class="tab" id="simulation">
-            <label>Gravity Multiplier: <input name="gravity" type="number" class="g reload" value="${GRAVITY_MULTIPLIER}" /></label>
-            <label>Simulation Speed: <input name="simulation-speed" type="number" class="ss" value="${SIMULATION_SPEED}" /></label>
-            <label>Attached Body: <input name="attached-body" type="number" class="ab" value="${3}" /></label>
-            <label>Pull Camera: <input name="pull-camera" type="checkbox" class="pc" ${PULL_CAMERA ? "checked" : ""} /></label>
+            <label>Gravity Multiplier: <input name="gravity" type="number" class="g reload" value="${settings.GRAVITY_MULTIPLIER}" /></label>
+            <label>Simulation Speed: <input name="simulation-speed" type="number" class="ss" value="${settings.SIMULATION_SPEED}" /></label>
+            <label>Attached Body: <input name="attached-body" type="number" class="ab" value="${settings.ATTACHED_BODY_INDEX}" /></label>
+            <label>Pull Camera: <input name="pull-camera" type="checkbox" class="pc" ${settings.PULL_CAMERA ? "checked" : ""} /></label>
           </div>
           <button class="tab-button" tab="bloom">Bloom</button>
           <div class="tab" id="bloom">
-            <label>Gaussian Iterations: <input name="gaussian-iterations" type="number" class="bi" value="${GAUSIAN_ITERATIONS}" /></label>
-            <label>Pixel Scale: <input name="pixel-scale" type="number" class="ps" value="${PIXEL_SCALE}" /></label>
+            <label>Gaussian Iterations: <input name="gaussian-iterations" type="number" class="bi" value="${settings.GAUSIAN_ITERATIONS}" /></label>
+            <label>Pixel Scale: <input name="pixel-scale" type="number" class="ps" value="${settings.PIXEL_SCALE}" /></label>
           </div>
           <button class="tab-button" tab="orbit">Orbit prediction</button>
           <div class="tab" id="orbit">
-            <label>Render Orbits: <input name="render-orbits" type="checkbox" class="ro" ${RENDER_ORBITS ? "checked" : ""} /></label>
+            <label>Render Orbits: <input name="render-orbits" type="checkbox" class="ro" ${settings.RENDER_ORBITS ? "checked" : ""} /></label>
           </div>
           <button class="tab-button" tab="sphere">Sphere generator</button>
           <div class="tab" id="sphere">
-            <label>Perlin Strength: <input name="strength" type="number" class="str reload" value="${PERLIN_STRENGTH}" /></label>
-            <label>Epsilon: <input name="epsilon" type="number" class="eps reload" value="${PERLIN_EPSILON}" /></label>
-            <label>Debug Normals: <input name="debug-normals" type="checkbox" class="dn" ${DEBUG_NORMALS ? "checked" : ""} /></label>
+            <label>Perlin Strength: <input name="strength" type="number" class="str reload" value="${settings.PERLIN_STRENGTH}" /></label>
+            <label>Epsilon: <input name="epsilon" type="number" class="eps reload" value="${settings.PERLIN_EPSILON}" /></label>
+            <label>Debug Normals: <input name="debug-normals" type="checkbox" class="dn" ${settings.DEBUG_NORMALS ? "checked" : ""} /></label>
           </div>
           <button class="tab-button" tab="shadows">Shadows</button>
           <div class="tab" id="shadows">
-            <label>Debug Shadows: <input name="debug-shadows" type="checkbox" class="ds" ${DEBUG_SHADOWS ? "checked" : ""} /></label>
-            <label>Show Depth Cube: <input name="show-depth-cube" type="checkbox" class="sdc" ${SHOW_DEPTH_CUBE ? "checked" : ""} /></label>
-            <label>Depth Bias: <input name="depth-bias" type="number" class="db" value="${DEPTH_BIAS}" /></label>
-            <label>Normal Offset: <input name="normal-offset" type="number" class="no" value="${NORMAL_OFFSET}" /></label>
+            <label>Debug Shadows: <input name="debug-shadows" type="checkbox" class="ds" ${settings.DEBUG_SHADOWS ? "checked" : ""} /></label>
+            <label>Show Depth Cube: <input name="show-depth-cube" type="checkbox" class="sdc" ${settings.SHOW_DEPTH_CUBE ? "checked" : ""} /></label>
+            <label>Depth Bias: <input name="depth-bias" type="number" class="db" value="${settings.DEPTH_BIAS}" /></label>
+            <label>Normal Offset: <input name="normal-offset" type="number" class="no" value="${settings.NORMAL_OFFSET}" /></label>
           </div>
           <button class="tab-button" tab="atmosphere">Atmosphere</button>
           <div class="tab" id="atmosphere">
-           <label>Step Count: <input name="atmosphere-step-count" type="number" class="asc" value="${ATMOSPHERE_STEP_COUNT}" /></label>
-              <label>Show Prebaked Depth: <input name="show-prebaked-depth" type="checkbox" class="spd" ${ATMOSPHERE_SHOW_PREBAKED_DEPTH ? "checked" : ""} /></label>
+           <label>Step Count: <input name="atmosphere-step-count" type="number" class="asc" value="${settings.ATMOSPHERE_STEP_COUNT}" /></label>
+              <label>Show Prebaked Depth: <input name="show-prebaked-depth" type="checkbox" class="spd" ${settings.ATMOSPHERE_SHOW_PREBAKED_DEPTH ? "checked" : ""} /></label>
            </div>
         <button class="tab-button" tab="bodies">Initial bodies data</button>
         <div class="tab body-controls" id="bodies">
@@ -53,8 +50,8 @@ export function PrepareUI() {
     <section>`;
 
 
-  document.querySelector(".body-controls")!.innerHTML += INITIAL_BODIES.map(
-    (body, i) => `
+  document.querySelector(".body-controls")!.innerHTML += settings.INITIAL_BODIES.map(
+    (body:any, i:number) => `
             <div class="body">
                 <h2>Body ${i}</h2>
                 <label>Mass: <input type="number" class="mass" value="${body.mass}" /></label>
@@ -109,82 +106,82 @@ export function PrepareUI() {
 
     document.querySelector(".g")!.addEventListener("change", (e) => {
       const newGravityMultiplier = parseFloat((e.target as HTMLInputElement).value);
-      SetGravityMultiplier(newGravityMultiplier);
+      settings.SetGravityMultiplier(newGravityMultiplier);
     });
 
     document.querySelector(".ss")!.addEventListener("change", (e) => {
       const newSimulationSpeed = parseFloat((e.target as HTMLInputElement).value);
-      SetSimulationSpeed(newSimulationSpeed);
+      settings.SetSimulationSpeed(newSimulationSpeed);
     });
 
     document.querySelector(".bi")!.addEventListener("change", (e) => {
       const newGausianIterations = parseFloat((e.target as HTMLInputElement).value);
-      SetGausianIterations(newGausianIterations);
+      settings.SetGausianIterations(newGausianIterations);
     });
 
     document.querySelector(".ps")!.addEventListener("change", (e) => {
       const newPixelScale = parseFloat((e.target as HTMLInputElement).value);
-      SetPixelScale(newPixelScale);
+      settings.SetPixelScale(newPixelScale);
     });
 
     document.querySelector(".ab")!.addEventListener("change", (e) => {
       const newAttachedBodyIndex = parseFloat((e.target as HTMLInputElement).value);
-      SetAttachedBody(newAttachedBodyIndex);
+      settings.SetAttachedBody(newAttachedBodyIndex, settings.INITIAL_BODIES.length - 1);
     });
 
     document.querySelector(".ro")!.addEventListener("change", (e) => {
       const newRenderOrbits = (e.target as HTMLInputElement).checked;
-      SetRenderOrbits(newRenderOrbits);
+      settings.SetRenderOrbits(newRenderOrbits);
     });
 
     document.querySelector(".str")!.addEventListener("change", (e) => {
       const newStr = parseFloat((e.target as HTMLInputElement).value);
-      SetStrength(newStr);
+      settings.SetStrength(newStr);
     });
 
     document.querySelector(".eps")!.addEventListener("change", (e) => {
       const newEps = parseFloat((e.target as HTMLInputElement).value);
-      SetEpsilon(newEps);
+      settings.SetEpsilon(newEps);
     });
 
     document.querySelector(".dn")!.addEventListener("change", (e) => {
       const newDebugNormals = (e.target as HTMLInputElement).checked;
-      SetDebugNormals(newDebugNormals);
+      settings.SetDebugNormals(newDebugNormals);
     });
 
     document.querySelector(".ds")!.addEventListener("change", (e) => {
       const newDebugShadows = (e.target as HTMLInputElement).checked;
-      SetDebugShadows(newDebugShadows);
+      settings.SetDebugShadows(newDebugShadows);
     });
 
     document.querySelector(".sdc")!.addEventListener("change", (e) => {
       const newShowDepthCube = (e.target as HTMLInputElement).checked;
-      SetShowDepthCube(newShowDepthCube);
+      settings.SetShowDepthCube(newShowDepthCube);
     });
 
     document.querySelector(".db")!.addEventListener("change", (e) => {
       const newDepthBias = parseFloat((e.target as HTMLInputElement).value);
-      SetDepthBias(newDepthBias);
+      settings.SetDepthBias(newDepthBias);
     });
 
     document.querySelector(".no")!.addEventListener("change", (e) => {
       const newNormalOffset = parseFloat((e.target as HTMLInputElement).value);
-      SetNormalOffset(newNormalOffset);
+      settings.SetNormalOffset(newNormalOffset);
     });
 
     document.querySelector(".asc")!.addEventListener("change", (e) => {
       const newAtmosphereStepCount = parseFloat((e.target as HTMLInputElement).value);
-      SetAtmosphereStepCount(newAtmosphereStepCount);
+      settings.SetAtmosphereStepCount(newAtmosphereStepCount);
     });
 
     document.querySelector(".spd")!.addEventListener("change", (e) => {
       const newShowPrebakedDepth = (e.target as HTMLInputElement).checked;
-      SetShowPrebakedDepth(newShowPrebakedDepth);
+      settings.SetShowPrebakedDepth(newShowPrebakedDepth);
     });
 
     document.querySelector(".pc")!.addEventListener("change", (e) => {
       const newPullCamera = (e.target as HTMLInputElement).checked;
-      SetPullCamera(newPullCamera);
+      settings.SetPullCamera(newPullCamera);
     });
 
     document.querySelectorAll(".body").forEach((control, i) => {
@@ -202,67 +199,69 @@ export function PrepareUI() {
       const atmosphereWavelengthsBInput = control.querySelector(".aw-b") as HTMLInputElement;
 
       atmosphereEnabledInput.addEventListener("change", () => {
-        INITIAL_BODIES[i].atmosphere.enabled = atmosphereEnabledInput.checked ? 1 : 0;
+        settings.INITIAL_BODIES[i].atmosphere.enabled = atmosphereEnabledInput.checked ? 1 : 0;
       });
 
       atmosphereRadiusInput.addEventListener("change", () => {
-        INITIAL_BODIES[i].atmosphere.atmosphereRadius = parseFloat(atmosphereRadiusInput.value);
+        settings.INITIAL_BODIES[i].atmosphere.atmosphereRadius = parseFloat(atmosphereRadiusInput.value);
       });
 
       atmosphereFalloffInput.addEventListener("change", () => {
-        INITIAL_BODIES[i].atmosphere.densityFalloff = parseFloat(atmosphereFalloffInput.value);
+        settings.INITIAL_BODIES[i].atmosphere.densityFalloff = parseFloat(atmosphereFalloffInput.value);
       });
 
       atmosphereScatteringStrengthInput.addEventListener("change", () => {
-        INITIAL_BODIES[i].atmosphere.scatteringStrength = parseFloat(atmosphereScatteringStrengthInput.value);
+        settings.INITIAL_BODIES[i].atmosphere.scatteringStrength = parseFloat(atmosphereScatteringStrengthInput.value);
       });
 
       atmosphereWavelengthsRInput.addEventListener("change", () => {
-        INITIAL_BODIES[i].atmosphere.wavelengths.x = parseFloat(atmosphereWavelengthsRInput.value);
+        settings.INITIAL_BODIES[i].atmosphere.wavelengths.x = parseFloat(atmosphereWavelengthsRInput.value);
       });
 
       atmosphereWavelengthsGInput.addEventListener("change", () => {
-        INITIAL_BODIES[i].atmosphere.wavelengths.y = parseFloat(atmosphereWavelengthsGInput.value);
+        settings.INITIAL_BODIES[i].atmosphere.wavelengths.y = parseFloat(atmosphereWavelengthsGInput.value);
       });
 
       atmosphereWavelengthsBInput.addEventListener("change", () => {
-        INITIAL_BODIES[i].atmosphere.wavelengths.z = parseFloat(atmosphereWavelengthsBInput.value);
+        settings.INITIAL_BODIES[i].atmosphere.wavelengths.z = parseFloat(atmosphereWavelengthsBInput.value);
       });
 
       massInput.addEventListener("change", () => {
-        INITIAL_BODIES[i].mass = parseFloat(massInput.value);
+        settings.INITIAL_BODIES[i].mass = parseFloat(massInput.value);
       });
 
       radiusInput.addEventListener("change", () => {
-        INITIAL_BODIES[i].radius = parseFloat(radiusInput.value);
+        settings.INITIAL_BODIES[i].radius = parseFloat(radiusInput.value);
       });
 
       positionXInput.addEventListener("change", () => {
-        INITIAL_BODIES[i].position.x = parseFloat(positionXInput.value);
+        settings.INITIAL_BODIES[i].position.x = parseFloat(positionXInput.value);
       });
 
       positionYInput.addEventListener("change", () => {
-        INITIAL_BODIES[i].position.y = parseFloat(positionYInput.value);
+        settings.INITIAL_BODIES[i].position.y = parseFloat(positionYInput.value);
       });
 
       positionZInput.addEventListener("change", () => {
-        INITIAL_BODIES[i].position.z = parseFloat(positionZInput.value);
+        settings.INITIAL_BODIES[i].position.z = parseFloat(positionZInput.value);
       });
-    });
-
-    document.querySelectorAll("input.reload").forEach((input) => {
-      input.addEventListener("change", SetUpBodiesRenderData);
-    });
-
-    document.querySelectorAll("input").forEach((input) => {
-      input.addEventListener("change", ReloadSettings);
     });
 
     controlsSetUp = true;
   }
 
+  function setUpCallbacks(setUpBodiesRenderData: () => void, reloadSettings: () => void) {
+    document.querySelectorAll("input.reload").forEach((input) => {
+      input.addEventListener("change", setUpBodiesRenderData);
+    });
+
+    document.querySelectorAll("input").forEach((input) => {
+      input.addEventListener("change", reloadSettings);
+    });
+  }
 
   return {
-    SetUpControls
+    SetUpControls,
+    setUpCallbacks,
   }
 }

@@ -1,8 +1,8 @@
-import tgpu, { std, d, type TgpuRoot, type TgpuUniform, type TgpuBuffer, type TgpuTexture, type RenderFlag } from "typegpu";
-import { BODY_COUNT_CONST, CelestianBody } from "./data/simulation-data";
-import { ATTACHED_BODY_INDEX, GRAVITY_MULTIPLIER, ORBIT_PREDICTION_STEPS, ORBIT_PREDICTION_STEPS_CONST, SIMULATION_SPEED } from "./data/settings";
+import tgpu, { std, d, type TgpuRoot, type TgpuUniform, type TgpuBuffer, type TgpuTexture, type RenderFlag, type TgpuConst } from "typegpu";
+import { CelestianBody } from "./data/simulation-data";
 import type { Camera } from "./setup-first-person-camera";
 import * as m from "wgpu-matrix";
+import type { Settings } from "./main";
 
 export function bodiesToArrays(bodies: d.Infer<typeof CelestianBody>[]) {
     const positions = new Float32Array(bodies.length * 3);
@@ -20,7 +20,7 @@ export function bodiesToArrays(bodies: d.Infer<typeof CelestianBody>[]) {
     return { positions, velocities };
 }
 
-export function getBodyRotationSpeedInAngle(body: d.Infer<typeof CelestianBody>) {
+export function getBodyRotationSpeedInAngle(body: d.Infer<typeof CelestianBody>, SIMULATION_SPEED: number) {
     return body.rotationSpeed * (Math.PI / 180) * SIMULATION_SPEED;
 }
 
@@ -31,7 +31,10 @@ export function PrepareSimulation(
     rotationMatricesArray: Float32Array<ArrayBuffer>,
     bodiesRotationMatriciesBuffer: TgpuBuffer<d.WgslArray<d.Mat4x4f>>,
     currentRotationArray: Float32Array<ArrayBuffer>,
-    mainTexture:TgpuTexture & RenderFlag
+    mainTexture:TgpuTexture & RenderFlag,
+    settings: Settings,
+    BODY_COUNT_CONST: TgpuConst<d.I32>,
+    ORBIT_PREDICTION_STEPS_CONST: TgpuConst<d.I32>
 ) {
     const orbitRenderLayout = tgpu.bindGroupLayout({
         currentBodyIndex: { storage: d.i32, access: "readonly" },
@@ -92,7 +95,7 @@ export function PrepareSimulation(
         }
     });
 
-    function simulateGravity(positions: Float32Array<ArrayBuffer>, velocities: Float32Array<ArrayBuffer>, bodies: d.Infer<typeof CelestianBody>[], speed: number = SIMULATION_SPEED) {
+    function simulateGravity(positions: Float32Array<ArrayBuffer>, velocities: Float32Array<ArrayBuffer>, bodies: d.Infer<typeof CelestianBody>[], speed: number = settings.SIMULATION_SPEED) {
         for (let i = 0; i < BODY_COUNT_CONST.$; i++) {
             let newVelocity = d.vec3f(0, 0, 0);
 
@@ -114,7 +117,7 @@ export function PrepareSimulation(
                     bodyPosition,
                     otherPosition
                 );
-                const gravityForce = GRAVITY_MULTIPLIER * (otherMass / (distance * distance));
+                const gravityForce = settings.GRAVITY_MULTIPLIER * (otherMass / (distance * distance));
                 const direction = std.normalize(otherPosition.sub(bodyPosition));
                 newVelocity = newVelocity.add(direction.mul(gravityForce));
             }
@@ -134,10 +137,10 @@ export function PrepareSimulation(
         const positions = new Float32Array(initialPositions);
         const velocities = new Float32Array(initialVelocities);
 
-        for (let i = 0; i < ORBIT_PREDICTION_STEPS; i++) {
+        for (let i = 0; i < settings.ORBIT_PREDICTION_STEPS; i++) {
             simulateGravity(positions, velocities, bodies, 10);
             for (let bodyIndex = 0; bodyIndex < BODY_COUNT_CONST.$; bodyIndex++) {
-                const vertexIndex = ((bodyIndex * ORBIT_PREDICTION_STEPS) + i) * 4;
+                const vertexIndex = ((bodyIndex * settings.ORBIT_PREDICTION_STEPS) + i) * 4;
 
                 verteciesArray[vertexIndex] = positions[bodyIndex * 3];
                 verteciesArray[vertexIndex + 1] = positions[bodyIndex * 3 + 1];
@@ -156,14 +159,14 @@ export function PrepareSimulation(
             orbitPrepareRenderPipeline.
                 withColorAttachment({ view: mainTexture, loadOp: "load", clearValue: { r: 0, g: 0, b: 0, a: 0 } }).
                 with(orbitPrepareRenderBindGroup).
-                draw(ORBIT_PREDICTION_STEPS, 1);
+                draw(settings.ORBIT_PREDICTION_STEPS, 1);
         });
     }
 
     function simulateRotation() {
         bodies.forEach((body, i) => {
             const currentAngle = currentRotationArray[i];
-            const newAngle = currentAngle + getBodyRotationSpeedInAngle(body);
+            const newAngle = currentAngle + getBodyRotationSpeedInAngle(body, settings.SIMULATION_SPEED);
             currentRotationArray[i] = newAngle;
 
             const rotationMatrix = m.mat4.rotationY(newAngle);
@@ -195,12 +198,12 @@ export function PrepareSimulation(
             distance: number;
         }
     ) {
-        if (ATTACHED_BODY_INDEX === -1) return;
+        if (settings.ATTACHED_BODY_INDEX === -1) return;
 
         const attachedBodyPosition = d.vec3f(
-            positionsArray[ATTACHED_BODY_INDEX * 3],
-            positionsArray[ATTACHED_BODY_INDEX * 3 + 1],
-            positionsArray[ATTACHED_BODY_INDEX * 3 + 2]
+            positionsArray[settings.ATTACHED_BODY_INDEX * 3],
+            positionsArray[settings.ATTACHED_BODY_INDEX * 3 + 1],
+            positionsArray[settings.ATTACHED_BODY_INDEX * 3 + 2]
         );
 
         const direction = attachedBodyPosition.sub(camera.state.pos);
@@ -211,8 +214,8 @@ export function PrepareSimulation(
             return;
         }
 
-        const gravityForce = GRAVITY_MULTIPLIER * (bodies[ATTACHED_BODY_INDEX].mass / (distance * distance));
-        const newCameraPosition = camera.state.pos.add(normalizedDirection.mul(gravityForce * SIMULATION_SPEED * 200));
+        const gravityForce = settings.GRAVITY_MULTIPLIER * (bodies[settings.ATTACHED_BODY_INDEX].mass / (distance * distance));
+        const newCameraPosition = camera.state.pos.add(normalizedDirection.mul(gravityForce * settings.SIMULATION_SPEED * 200));
         camera.setPosition(newCameraPosition);
     }
 

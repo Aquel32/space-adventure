@@ -7,9 +7,7 @@ import tgpu, {
   type TgpuBuffer,
   type VertexFlag,
 } from "typegpu";
-import * as sphere from "./sphere";
-import { CelestianBody, INITIAL_BODIES } from "./data/simulation-data";
-import { ATMOSPHERE_SHOW_PREBAKED_DEPTH, ATTACHED_BODY_INDEX, DEBUG_NORMALS, DEBUG_SHADOWS, NORMAL_OFFSET, ORBIT_PREDICTION_STEPS, PERLIN_EPSILON, PERLIN_STRENGTH, PULL_CAMERA, RENDER_ORBITS, SetAttachedBody, SHOW_DEPTH_CUBE, SIMULATION_SPEED } from "./data/settings";
+import { CelestianBody, prepareSimulationData } from "./data/simulation-data";
 import { PrepareBloom } from "./postprocessing/bloom";
 import { bodiesToArrays, getBodyRotationSpeedInAngle, PrepareSimulation } from "./simulation";
 import { PrepareUI } from "./ui-controls";
@@ -17,6 +15,8 @@ import { PrepareShadows } from "./shadows";
 import { sample } from "./cpuPerlin";
 import * as m from "wgpu-matrix";
 import { PrepareAtmosphere } from "./atmosphere";
+import { prepareSettings } from "./data/settings";
+import { prepareSphereGenerator } from "./sphere";
 
 document.querySelector<HTMLDivElement>("#app")!.innerHTML += `
 <main>
@@ -24,9 +24,17 @@ document.querySelector<HTMLDivElement>("#app")!.innerHTML += `
 </main>
 `;
 
-const ui = PrepareUI();
+export type Settings = ReturnType<typeof prepareSettings>;
+
+const settings: Settings = prepareSettings();
+const { SetAttachedBody } = settings;
+const { INITIAL_BODIES, BODY_COUNT_CONST } = prepareSimulationData(settings);
+
+const ui = PrepareUI({ ...settings, INITIAL_BODIES })
 
 const root = await tgpu.init();
+
+const sphere = prepareSphereGenerator(settings.PERLIN_EPSILON, settings.PERLIN_STRENGTH, settings.SPHERE_DIVISIONS);
 
 // IF YOUR GPU SUPPORTS IT, YOU CAN REQUEST LARGER BUFFER SIZE LIMIT TO GENERATE MORE DETAILED BODIES
 // const root = await tgpu.init({
@@ -38,7 +46,7 @@ const context = root.configureContext({ canvas });
 
 let frame = 0;
 
-export const pixelScaleUniform = root.createUniform(d.f32);
+const pixelScaleUniform = root.createUniform(d.f32);
 
 const cameraUniform = root.createUniform(Camera);
 const camera = setupFirstPersonCamera(
@@ -104,8 +112,8 @@ export function SetUpBodiesRenderData() {
   velocitiesArray.set(initialVelocitiesArray);
   bodiesPositionsBuffer.write(initialPositionsArray);
   bodiesVelocitiesBuffer.write(initialVelocitiesArray);
-  debugShadowsUniform.write(DEBUG_SHADOWS ? 1 : 0);
-  normalOffsetUniform.write(NORMAL_OFFSET);
+  debugShadowsUniform.write(settings.DEBUG_SHADOWS ? 1 : 0);
+  normalOffsetUniform.write(settings.NORMAL_OFFSET);
 
   bodiesRenderData.length = 0;
   bodies.forEach((body, i) => {
@@ -293,16 +301,16 @@ const normalDebugPipeline = root.createRenderPipeline({
 });
 
 export function moveCameraToAttachedObject() {
-  if (ATTACHED_BODY_INDEX === -1) return;
-  if (ATTACHED_BODY_INDEX < 0 || ATTACHED_BODY_INDEX >= INITIAL_BODIES.length) return;
+  if (settings.ATTACHED_BODY_INDEX === -1) return;
+  if (settings.ATTACHED_BODY_INDEX < 0 || settings.ATTACHED_BODY_INDEX >= INITIAL_BODIES.length) return;
 
   const attachedBodyPosition = d.vec3f(
-    positionsArray[ATTACHED_BODY_INDEX * 3],
-    positionsArray[ATTACHED_BODY_INDEX * 3 + 1],
-    positionsArray[ATTACHED_BODY_INDEX * 3 + 2],
+    positionsArray[settings.ATTACHED_BODY_INDEX * 3],
+    positionsArray[settings.ATTACHED_BODY_INDEX * 3 + 1],
+    positionsArray[settings.ATTACHED_BODY_INDEX * 3 + 2],
   );
 
-  camera.setPosition(attachedBodyPosition.sub(d.vec3f(bodies[ATTACHED_BODY_INDEX].radius * 3,0,0)));
+  camera.setPosition(attachedBodyPosition.sub(d.vec3f(bodies[settings.ATTACHED_BODY_INDEX].radius * 3,0,0)));
 }
 
 function moveCameraWithAttachedObjectVelocity(collisionInfo: {
@@ -310,31 +318,31 @@ function moveCameraWithAttachedObjectVelocity(collisionInfo: {
   distance: number;
   normal: d.v3f;
 }) {
-  if (ATTACHED_BODY_INDEX === -1) return;
+  if (settings.ATTACHED_BODY_INDEX === -1) return;
 
 
   const attachedBodyVelocity = d.vec3f(
-    velocitiesArray[ATTACHED_BODY_INDEX * 3],
-    velocitiesArray[ATTACHED_BODY_INDEX * 3 + 1],
-    velocitiesArray[ATTACHED_BODY_INDEX * 3 + 2],
+    velocitiesArray[settings.ATTACHED_BODY_INDEX * 3],
+    velocitiesArray[settings.ATTACHED_BODY_INDEX * 3 + 1],
+    velocitiesArray[settings.ATTACHED_BODY_INDEX * 3 + 2],
   );
 
-  const cameraPosition = camera.state.pos.add(attachedBodyVelocity.mul(SIMULATION_SPEED));
+  const cameraPosition = camera.state.pos.add(attachedBodyVelocity.mul(settings.SIMULATION_SPEED));
 
-  if (collisionInfo.distance === -1 || collisionInfo.distance > bodies[ATTACHED_BODY_INDEX].radius + 2) {
+  if (collisionInfo.distance === -1 || collisionInfo.distance > bodies[settings.ATTACHED_BODY_INDEX].radius + 2) {
     camera.setPosition(cameraPosition);
     return;
   }
 
   const attachedBodyPos = d.vec3f(
-    positionsArray[ATTACHED_BODY_INDEX * 3],
-    positionsArray[ATTACHED_BODY_INDEX * 3 + 1],
-    positionsArray[ATTACHED_BODY_INDEX * 3 + 2],
-  ).add(attachedBodyVelocity.mul(-SIMULATION_SPEED));
+    positionsArray[settings.ATTACHED_BODY_INDEX * 3],
+    positionsArray[settings.ATTACHED_BODY_INDEX * 3 + 1],
+    positionsArray[settings.ATTACHED_BODY_INDEX * 3 + 2],
+  ).add(attachedBodyVelocity.mul(-settings.SIMULATION_SPEED));
 
   const direction = camera.state.pos.sub(attachedBodyPos);
 
-  const rotationAngle = getBodyRotationSpeedInAngle(bodies[ATTACHED_BODY_INDEX]);
+  const rotationAngle = getBodyRotationSpeedInAngle(bodies[settings.ATTACHED_BODY_INDEX], settings.SIMULATION_SPEED);
   const attachedBodyRotationMatrix = m.mat4.rotationY(rotationAngle, d.mat4x4f());
 
   const rotatedDirection = attachedBodyRotationMatrix.mul(d.vec4f(direction, 1)).xyz;
@@ -347,7 +355,7 @@ function moveCameraWithAttachedObjectVelocity(collisionInfo: {
 function checkForCollision() {
   "use gpu";
 
-  if (ATTACHED_BODY_INDEX === -1) {
+  if (settings.ATTACHED_BODY_INDEX === -1) {
     return {
       collides: false,
       distance: -1,
@@ -357,15 +365,15 @@ function checkForCollision() {
   }
 
   const attachedBodyPos = d.vec3f(
-    positionsArray[ATTACHED_BODY_INDEX * 3],
-    positionsArray[ATTACHED_BODY_INDEX * 3 + 1],
-    positionsArray[ATTACHED_BODY_INDEX * 3 + 2],
+    positionsArray[settings.ATTACHED_BODY_INDEX * 3],
+    positionsArray[settings.ATTACHED_BODY_INDEX * 3 + 1],
+    positionsArray[settings.ATTACHED_BODY_INDEX * 3 + 2],
   );
 
-  const perlinOffset = d.vec3f(ATTACHED_BODY_INDEX, 0, 0);
+  const perlinOffset = d.vec3f(settings.ATTACHED_BODY_INDEX, 0, 0);
 
-  const planetAngleStep = getBodyRotationSpeedInAngle(bodies[ATTACHED_BODY_INDEX]);
-  const planetAngle = currentRotationArray[ATTACHED_BODY_INDEX] + planetAngleStep;
+  const planetAngleStep = getBodyRotationSpeedInAngle(bodies[settings.ATTACHED_BODY_INDEX], settings.SIMULATION_SPEED);
+  const planetAngle = currentRotationArray[settings.ATTACHED_BODY_INDEX] + planetAngleStep;
   const reverseRotationMatrix = m.mat4.rotationY(-planetAngle, d.mat4x4f());
   const rotationMatrix = m.mat4.rotationY(planetAngle, d.mat4x4f());
 
@@ -375,22 +383,22 @@ function checkForCollision() {
 
   const pointOnInitialSphere = reverseRotationMatrix.mul(d.vec4f(normalizedDirection, 1)).xyz;
 
-  const perlinValue = 1 + (sample(pointOnInitialSphere + perlinOffset) * PERLIN_STRENGTH);
+  const perlinValue = 1 + (sample(pointOnInitialSphere + perlinOffset) * settings.PERLIN_STRENGTH);
   const pointWithPerlin = pointOnInitialSphere * perlinValue;
 
-  const ex = d.vec3f(PERLIN_EPSILON, 0, 0);
-  const ey = d.vec3f(0, PERLIN_EPSILON, 0);
-  const ez = d.vec3f(0, 0, PERLIN_EPSILON);
+  const ex = d.vec3f(settings.PERLIN_EPSILON, 0, 0);
+  const ey = d.vec3f(0, settings.PERLIN_EPSILON, 0);
+  const ez = d.vec3f(0, 0, settings.PERLIN_EPSILON);
 
-  const dhdx = (sample(pointOnInitialSphere + perlinOffset + ex) - sample(pointOnInitialSphere + perlinOffset - ex)) / (2 * PERLIN_EPSILON);
-  const dhdy = (sample(pointOnInitialSphere + perlinOffset + ey) - sample(pointOnInitialSphere + perlinOffset - ey)) / (2 * PERLIN_EPSILON);
-  const dhdz = (sample(pointOnInitialSphere + perlinOffset + ez) - sample(pointOnInitialSphere + perlinOffset - ez)) / (2 * PERLIN_EPSILON);
+  const dhdx = (sample(pointOnInitialSphere + perlinOffset + ex) - sample(pointOnInitialSphere + perlinOffset - ex)) / (2 * settings.PERLIN_EPSILON);
+  const dhdy = (sample(pointOnInitialSphere + perlinOffset + ey) - sample(pointOnInitialSphere + perlinOffset - ey)) / (2 * settings.PERLIN_EPSILON);
+  const dhdz = (sample(pointOnInitialSphere + perlinOffset + ez) - sample(pointOnInitialSphere + perlinOffset - ez)) / (2 * settings.PERLIN_EPSILON);
 
-  const grad = d.vec3f(dhdx, dhdy, dhdz) * PERLIN_STRENGTH;
+  const grad = d.vec3f(dhdx, dhdy, dhdz) * settings.PERLIN_STRENGTH;
   const tangentialGrad = grad - (std.dot(grad, pointOnInitialSphere) * pointOnInitialSphere);
   const normal = rotationMatrix.mul(d.vec4f(std.normalize(pointWithPerlin - tangentialGrad), 1)).xyz;
 
-  const surfaceHeight = perlinValue * bodies[ATTACHED_BODY_INDEX].radius;
+  const surfaceHeight = perlinValue * bodies[settings.ATTACHED_BODY_INDEX].radius;
 
   if (distance - 0.02 <= surfaceHeight) {
     return {
@@ -410,7 +418,7 @@ function checkForCollision() {
 }
 
 function findClosestBody() {
-  let closestBodyIndex = ATTACHED_BODY_INDEX;
+  let closestBodyIndex = settings.ATTACHED_BODY_INDEX;
   let smallestDistance = Infinity;
   bodies.forEach((body, i) => {
     const bodyPos = d.vec3f(
@@ -426,7 +434,7 @@ function findClosestBody() {
     }
   });
 
-  SetAttachedBody(closestBodyIndex, false);
+  SetAttachedBody(closestBodyIndex, INITIAL_BODIES.length - 1, false);
 }
 
 const mainTexture = root.createTexture({
@@ -436,10 +444,10 @@ const mainTexture = root.createTexture({
   .$usage("render", "sampled");
 
 
-const simulation = PrepareSimulation(root, cameraUniform, bodies, rotationMatricesArray, bodiesRotationMatriciesBuffer, currentRotationArray, mainTexture);
-const shadows = PrepareShadows(root, context, positionVertexLayout, bodiesRenderData, bodiesUniform, mainBindGroupLayout, mainBindGroup, positionsArray, 0);
-const bloomEffect = PrepareBloom(root, canvas, context, pixelScaleUniform);
-const atmosphere = PrepareAtmosphere(root, canvas, context, cameraUniform, bodiesUniform, bodiesPositionsBuffer, depthTexture, mainTexture);
+const simulation = PrepareSimulation(root, cameraUniform, bodies, rotationMatricesArray, bodiesRotationMatriciesBuffer, currentRotationArray, mainTexture, settings, BODY_COUNT_CONST, settings.ORBIT_PREDICTION_STEPS_CONST);
+const shadows = PrepareShadows(root, context, positionVertexLayout, bodiesRenderData, bodiesUniform, mainBindGroupLayout, mainBindGroup, positionsArray, 0, settings, sphere.getVertexAmount);
+const bloomEffect = PrepareBloom(root, canvas, context, pixelScaleUniform, settings);
+const atmosphere = PrepareAtmosphere(root, canvas, context, cameraUniform, bodiesUniform, bodiesPositionsBuffer, depthTexture, mainTexture, settings);
 
 const shadowsBindGroup = root.createBindGroup(shadowsLayout, {
   sampler: shadows.sampler,
@@ -447,9 +455,10 @@ const shadowsBindGroup = root.createBindGroup(shadowsLayout, {
 });
 
 export function ReloadSettings() {
-  debugShadowsUniform.write(DEBUG_SHADOWS ? 1 : 0);
-  normalOffsetUniform.write(NORMAL_OFFSET);
+  debugShadowsUniform.write(settings.DEBUG_SHADOWS ? 1 : 0);
+  normalOffsetUniform.write(settings.NORMAL_OFFSET);
   bodiesUniform.write(INITIAL_BODIES);
+  pixelScaleUniform.write(settings.PIXEL_SCALE);
 
   for (let i = 0; i < INITIAL_BODIES.length; i++) {
     bodies[i] = INITIAL_BODIES[i];
@@ -463,6 +472,9 @@ export function ReloadSettings() {
 let lastTime = performance.now();
 let fpsCounter = document.getElementById("fps")!;
 
+ui.setUpCallbacks(SetUpBodiesRenderData, ReloadSettings);
+settings.SetAttachedBodyCallback(moveCameraToAttachedObject);
+
 function render() 
 {
   const currentTime = performance.now();
@@ -475,7 +487,7 @@ function render()
   findClosestBody();
   const collisionInfo = checkForCollision();
 
-  if(PULL_CAMERA)
+  if(settings.PULL_CAMERA)
   {
     simulation.pullTowardsAttachedBody(positionsArray, camera, collisionInfo);
   }
@@ -486,7 +498,7 @@ function render()
   bodiesPositionsBuffer.write(positionsArray);
   bodiesVelocitiesBuffer.write(velocitiesArray);
 
-  if (collisionInfo.distance !== -1 && collisionInfo.distance < bodies[ATTACHED_BODY_INDEX].radius + 2) {
+  if (collisionInfo.distance !== -1 && collisionInfo.distance < bodies[settings.ATTACHED_BODY_INDEX].radius + 2) {
     camera.setUp(collisionInfo.normal);
   }
   else {
@@ -500,7 +512,7 @@ function render()
     camera.setPosition(camera.state.pos.add(upVector.mul(collisionInfo.surfaceHeight - collisionInfo.distance + 0.02)));
   }
 
-  if (frame % (ORBIT_PREDICTION_STEPS) === 0) {
+  if (frame % (settings.ORBIT_PREDICTION_STEPS) === 0) {
     simulation.predictOrbits(positionsArray, velocitiesArray, bodies);
   }
 
@@ -531,7 +543,7 @@ function render()
       .draw(sphere.getVertexAmount(), 1);
   });
 
-  if (RENDER_ORBITS) {
+  if (settings.RENDER_ORBITS) {
     simulation.renderOrbits(bodies);
   }
 
@@ -540,7 +552,7 @@ function render()
   bloomEffect.applyGausianBlur();
   bloomEffect.render();
 
-  if (DEBUG_NORMALS) {
+  if (settings.DEBUG_NORMALS) {
     bodiesRenderData.forEach((item, i) => {
       currentBodyIndexUniform.write(i);
       normalDebugPipeline
@@ -557,11 +569,11 @@ function render()
     });
   }
 
-  if (SHOW_DEPTH_CUBE) {
+  if (settings.SHOW_DEPTH_CUBE) {
     shadows.debugRender();
   }
 
-  if (ATMOSPHERE_SHOW_PREBAKED_DEPTH) {
+  if (settings.ATMOSPHERE_SHOW_PREBAKED_DEPTH) {
     atmosphere.testRender();
   }
 
@@ -571,6 +583,6 @@ function render()
 
 ui.SetUpControls();
 SetUpBodiesRenderData();
-SetAttachedBody(3); // attach to earth
+SetAttachedBody(3, INITIAL_BODIES.length); // attach to earth
 
 requestAnimationFrame(render);

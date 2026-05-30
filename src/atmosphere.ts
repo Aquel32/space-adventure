@@ -1,6 +1,6 @@
 import { common, d, std, tgpu, type RenderFlag, type SampledFlag, type StorageFlag, type TgpuBuffer, type TgpuRoot, type TgpuTexture, type TgpuUniform } from "typegpu";
 import type { Camera } from "./setup-first-person-camera";
-import { ATMOSPHERE_STEP_COUNT, ATTACHED_BODY_INDEX } from "./data/settings";
+import type { Settings } from "./main";
 
 export function PrepareAtmosphere(
     root: TgpuRoot,
@@ -34,7 +34,8 @@ export function PrepareAtmosphere(
     colorTexture: TgpuTexture<{
         size: [number, number, 1];
         format: "rgba8unorm";
-    }> & SampledFlag & RenderFlag
+    }> & SampledFlag & RenderFlag,
+    settings: Settings,
 ) {
     const atmosphereRenderLayout = tgpu.bindGroupLayout({
         bodiesPositionsBuffer: { storage: d.arrayOf(d.f32), access: "readonly" },
@@ -47,7 +48,7 @@ export function PrepareAtmosphere(
 
     const currentBodyIndexUniform = root.createUniform(d.u32);
     const stepCountUniform = root.createUniform(d.u32);
-    stepCountUniform.write(ATMOSPHERE_STEP_COUNT);
+    stepCountUniform.write(settings.ATMOSPHERE_STEP_COUNT);
 
     const sampler = root.createSampler({
         magFilter: "nearest",
@@ -262,12 +263,12 @@ export function PrepareAtmosphere(
     }
 
     function reloadSettings() {
-        stepCountUniform.write(ATMOSPHERE_STEP_COUNT);
+        stepCountUniform.write(settings.ATMOSPHERE_STEP_COUNT);
         // bakeOpticalDepth();
     }
 
     function render() {
-        currentBodyIndexUniform.write(ATTACHED_BODY_INDEX);
+        currentBodyIndexUniform.write(settings.ATTACHED_BODY_INDEX);
         atmosphereRenderPipeline
             .withColorAttachment({ view: context })
             .with(atmosphereBindGroup)

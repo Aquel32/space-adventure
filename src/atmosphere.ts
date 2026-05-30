@@ -1,33 +1,12 @@
 import { common, d, std, tgpu, type RenderFlag, type SampledFlag, type StorageFlag, type TgpuBuffer, type TgpuRoot, type TgpuTexture, type TgpuUniform } from "typegpu";
 import type { Camera } from "./setup-first-person-camera";
 import { ATMOSPHERE_STEP_COUNT, ATTACHED_BODY_INDEX } from "./data/settings";
-import { randf } from "@typegpu/noise";
 
 export function PrepareAtmosphere(
     root: TgpuRoot,
     canvas: HTMLCanvasElement,
     context: GPUCanvasContext,
     cameraUniform: TgpuUniform<typeof Camera>,
-    bodies: {
-        position: d.v3f;
-        radius: number;
-        colors: {
-            color: d.v4f;
-            height: number;
-        }[];
-        velocity: d.v3f;
-        mass: number;
-        isSphere: number;
-        rotationSpeed: number;
-        atmosphere: {
-            enabled: number;
-            atmosphereRadius: number;
-            scatteringStrength: number;
-            densityFalloff: number;
-            wavelengths: d.v3f;
-        };
-
-    }[],
     bodiesUniform: TgpuUniform<d.WgslArray<d.WgslStruct<{
         position: d.Vec3f;
         radius: d.F32;
@@ -153,17 +132,17 @@ export function PrepareAtmosphere(
         return opticalDepth;
     }
 
-    function opticalDepthBaked(rayOrigin: d.v3f, rayDirection: d.v3f, rayLength: number, planetCentre: d.v3f, atmosphereRadius: number, planetRadius: number) {
-        "use gpu";
-        const height = std.length(rayOrigin - planetCentre) - planetRadius; //height above suface
-        const height01 = std.saturate(height / (atmosphereRadius - planetRadius)); // 0 at surface, 1 at top of atmosphere
+    // function opticalDepthBaked(rayOrigin: d.v3f, rayDirection: d.v3f, rayLength: number, planetCentre: d.v3f, atmosphereRadius: number, planetRadius: number) {
+    //     "use gpu";
+    //     const height = std.length(rayOrigin - planetCentre) - planetRadius; //height above suface
+    //     const height01 = std.saturate(height / (atmosphereRadius - planetRadius)); // 0 at surface, 1 at top of atmosphere
 
-        const angle = std.dot(rayDirection, std.normalize(rayOrigin - planetCentre));
-        const uv = d.vec2f(height01, angle);
+    //     const angle = std.dot(rayDirection, std.normalize(rayOrigin - planetCentre));
+    //     const uv = d.vec2f(height01, angle);
 
-        const opticalDepthSample = std.textureSampleLevel(atmosphereRenderLayout.$.opticalDepthTexture, atmosphereRenderLayout.$.sampler, uv, 0);
-        return opticalDepthSample.x;
-    }
+    //     const opticalDepthSample = std.textureSampleLevel(atmosphereRenderLayout.$.opticalDepthTexture, atmosphereRenderLayout.$.sampler, uv, 0);
+    //     return opticalDepthSample.x;
+    // }
 
     function calculateLight(rayOrigin: d.v3f, rayDirection: d.v3f, rayLength: number, planetCentre: d.v3f, atmosphereRadius: number, planetRadius: number, originalColor: d.v3f) {
         "use gpu";

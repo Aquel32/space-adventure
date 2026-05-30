@@ -1,8 +1,6 @@
 import tgpu, { d, std, type TgpuRoot } from "typegpu";
 import type { v3f } from "typegpu/data";
-import { select } from "typegpu/std";
-import { CelestianBody } from "./data/simulation-data";
-import { perlin2d, perlin3d, randf, randomGeneratorSlot, XOROSHIRO64STARSTAR } from '@typegpu/noise'
+import { perlin3d, randomGeneratorSlot, XOROSHIRO64STARSTAR } from '@typegpu/noise'
 import { PERLIN_EPSILON, PERLIN_STRENGTH, SPHERE_DIVISIONS } from "./data/settings";
 
 export const cubeDirections = tgpu.const(d.arrayOf(d.vec3f, 6), [

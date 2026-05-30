@@ -1,6 +1,6 @@
 import tgpu, { d, std, type StorageFlag, type TgpuBindGroup, type TgpuBindGroupLayout, type TgpuBuffer, type TgpuRoot, type TgpuUniform, type TgpuVertexLayout, type VertexFlag } from "typegpu";
 import * as m from "wgpu-matrix";
-import { calculateProj, calculateView, Camera } from "./setup-first-person-camera";
+import { calculateProj, calculateView } from "./setup-first-person-camera";
 import { getVertexAmount } from "./sphere";
 import { fullScreenTriangle } from "typegpu/common";
 import { DEPTH_BIAS } from "./data/settings";
@@ -16,7 +16,6 @@ const FACE_CONFIGS = [
 
 export function PrepareShadows(
     root: TgpuRoot,
-    canvas: HTMLCanvasElement,
     context: GPUCanvasContext,
     positionVertexLayout: TgpuVertexLayout<d.Disarray<d.float16x4>>,
     bodiesRenderData: {
@@ -27,13 +26,6 @@ export function PrepareShadows(
         debugNormalVerticies: TgpuBuffer<d.WgslArray<d.U32>> & StorageFlag;
         trickDebugNormalVerticies: TgpuBuffer<d.Disarray<d.float16x4>> & VertexFlag;
     }[],
-    cameraUniform: TgpuUniform<d.WgslStruct<{
-        pos: d.Vec4f;
-        view: d.Mat4x4f;
-        projection: d.Mat4x4f;
-        viewInverse: d.Mat4x4f;
-        projectionInverse: d.Mat4x4f;
-    }>>,
     bodiesUniform: TgpuUniform<d.WgslArray<d.WgslStruct<{
         position: d.Vec3f;
         radius: d.F32;
@@ -129,7 +121,7 @@ export function PrepareShadows(
                 position: d.builtin.position,
                 worldPosition: d.vec3f,
             },
-        })(({ vid, inVertex }) => {
+        })(({ inVertex }) => {
             "use gpu";
 
             const bodyIndex = currentBodyIndexUniform.$;

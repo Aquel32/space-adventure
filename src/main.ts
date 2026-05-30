@@ -1,30 +1,18 @@
 // oxlint-disable-next-line no-unassigned-import
-import { cos, normalize, select, sin, step } from "typegpu/std";
 import { Camera, setupFirstPersonCamera } from "./setup-first-person-camera";
-import "./style.css";
 import tgpu, {
-  common,
   d,
   std,
   type StorageFlag,
-  type TgpuBindGroup,
   type TgpuBuffer,
-  type TgpuBufferMutable,
-  type TgpuBufferUniform,
-  type TgpuConst,
-  type TgpuGuardedComputePipeline,
-  type TgpuMutable,
-  type TgpuRenderPipeline,
-  type TgpuUniform,
   type VertexFlag,
 } from "typegpu";
 import * as sphere from "./sphere";
-import { BODY_COUNT_CONST, CelestianBody, INITIAL_BODIES } from "./data/simulation-data";
+import { CelestianBody, INITIAL_BODIES } from "./data/simulation-data";
 import { ATMOSPHERE_SHOW_PREBAKED_DEPTH, ATTACHED_BODY_INDEX, DEBUG_NORMALS, DEBUG_SHADOWS, NORMAL_OFFSET, ORBIT_PREDICTION_STEPS, PERLIN_EPSILON, PERLIN_STRENGTH, PULL_CAMERA, RENDER_ORBITS, SetAttachedBody, SHOW_DEPTH_CUBE, SIMULATION_SPEED } from "./data/settings";
 import { PrepareBloom } from "./postprocessing/bloom";
 import { bodiesToArrays, getBodyRotationSpeedInAngle, PrepareSimulation } from "./simulation";
 import { PrepareUI } from "./ui-controls";
-import { writeSoA } from "typegpu/common";
 import { PrepareShadows } from "./shadows";
 import { sample } from "./cpuPerlin";
 import * as m from "wgpu-matrix";
@@ -197,7 +185,7 @@ const mainRenderPipeline = root.createRenderPipeline({
       bodyId: currentBodyIndexUniform.$,
     };
   }),
-  fragment: ({ $position, groundColor, normal, vid, point, emits, cameraPos, bodyId }) => {
+  fragment: ({groundColor, normal, point, emits, cameraPos }) => {
     "use gpu";
     if (emits === 1) {
       return {
@@ -266,7 +254,7 @@ const normalDebugPipeline = root.createRenderPipeline({
     out: {
       position: d.builtin.position,
     },
-  })(({ vid, inNormal }) => {
+  })(({ inNormal }) => {
     "use gpu";
     const bodyIndex = currentBodyIndexUniform.$;
     const body = bodiesUniform.$[bodyIndex];
@@ -289,7 +277,7 @@ const normalDebugPipeline = root.createRenderPipeline({
       position,
     };
   }),
-  fragment: ({ $position }) => {
+  fragment: ({ }) => {
     "use gpu";
 
     return d.vec4f(1, 1, 1, 1);
@@ -448,10 +436,10 @@ const mainTexture = root.createTexture({
   .$usage("render", "sampled");
 
 
-const simulation = PrepareSimulation(root, canvas, context, cameraUniform, bodies, rotationMatricesArray, bodiesRotationMatriciesBuffer, currentRotationArray, mainTexture);
-const shadows = PrepareShadows(root, canvas, context, positionVertexLayout, bodiesRenderData, cameraUniform, bodiesUniform, mainBindGroupLayout, mainBindGroup, positionsArray, 0);
+const simulation = PrepareSimulation(root, cameraUniform, bodies, rotationMatricesArray, bodiesRotationMatriciesBuffer, currentRotationArray, mainTexture);
+const shadows = PrepareShadows(root, context, positionVertexLayout, bodiesRenderData, bodiesUniform, mainBindGroupLayout, mainBindGroup, positionsArray, 0);
 const bloomEffect = PrepareBloom(root, canvas, context, pixelScaleUniform);
-const atmosphere = PrepareAtmosphere(root, canvas, context, cameraUniform, bodies, bodiesUniform, bodiesPositionsBuffer, depthTexture, mainTexture);
+const atmosphere = PrepareAtmosphere(root, canvas, context, cameraUniform, bodiesUniform, bodiesPositionsBuffer, depthTexture, mainTexture);
 
 const shadowsBindGroup = root.createBindGroup(shadowsLayout, {
   sampler: shadows.sampler,

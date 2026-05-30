@@ -26,8 +26,6 @@ export function getBodyRotationSpeedInAngle(body: d.Infer<typeof CelestianBody>)
 
 export function PrepareSimulation(
     root: TgpuRoot,
-    canvas: HTMLCanvasElement,
-    context: GPUCanvasContext,
     cameraUniform: TgpuUniform<typeof Camera>,
     bodies: d.Infer<typeof CelestianBody>[],
     rotationMatricesArray: Float32Array<ArrayBuffer>,

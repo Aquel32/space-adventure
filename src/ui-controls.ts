@@ -83,7 +83,7 @@ export function PrepareUI() {
   })
 
   document.querySelectorAll("button.tab-button").forEach((tabButton) => {
-    tabButton.addEventListener("click", (e) => {
+    tabButton.addEventListener("click", () => {
       const tabName = tabButton.getAttribute("tab");
       document.querySelector(`.tab#${tabName}`)?.classList.toggle("hidden");
     })

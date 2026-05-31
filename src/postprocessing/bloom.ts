@@ -91,7 +91,7 @@ export function PrepareBloom(root: TgpuRoot, canvas: HTMLCanvasElement, context:
 
                 if (i === 0) continue;
 
-                const vec = std.select(d.vec2f(pixelSize * i, 0), d.vec2f(0, pixelSize * i), blurBindGroundLayout.$.isHorizontal === 0);
+                const vec = std.select(d.vec2f(pixelSize * d.f32(i), 0), d.vec2f(0, pixelSize * d.f32(i)), blurBindGroundLayout.$.isHorizontal === 0);
 
                 result +=
                     std.textureSampleLevel(

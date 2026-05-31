@@ -60,7 +60,7 @@ export function PrepareSimulation(
             "use gpu";
             const bodyIndex = orbitRenderLayout.$.currentBodyIndex;
             const camera = cameraUniform.$;
-            const index = (bodyIndex * ORBIT_PREDICTION_STEPS_CONST.$ + vid);
+            const index = (bodyIndex * settings.ORBIT_PREDICTION_STEPS_CONST.$ + d.i32(vid));
             const point = orbitRenderLayout.$.vertecies[index];
 
             const position = camera.projection.mul(camera.view).mul(point);

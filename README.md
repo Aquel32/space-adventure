@@ -8,11 +8,11 @@ During this project I have set my first steps into Graphic Programming world, le
 
 You can check it out yourself [here](https://aquel32.github.io/space-adventure/).
 
-<div align="center">
-  <img width="250" alt="b" src="https://github.com/user-attachments/assets/178985ee-f8a4-4996-9523-dd38d766a618" />
-  <img width="250" alt="a" src="https://github.com/user-attachments/assets/8eb71218-43a5-46cd-8713-b982a1ff230e" />
-  <img width="250" alt="d" src="https://github.com/user-attachments/assets/3d63d7b3-60f4-404b-9c7d-c4fad76ece47" />
-  <img width="250" alt="c" src="https://github.com/user-attachments/assets/74ea7d6f-1c6a-4455-b96c-f215c7ade507" />
+<div style="display: flex; justify-content: space-between">
+  <img width="24%" alt="b" src="https://github.com/user-attachments/assets/178985ee-f8a4-4996-9523-dd38d766a618" />
+  <img width="24%" alt="a" src="https://github.com/user-attachments/assets/8eb71218-43a5-46cd-8713-b982a1ff230e" />
+  <img width="24%" alt="d" src="https://github.com/user-attachments/assets/3d63d7b3-60f4-404b-9c7d-c4fad76ece47" />
+  <img width="24%" alt="c" src="https://github.com/user-attachments/assets/74ea7d6f-1c6a-4455-b96c-f215c7ade507" />
 </div>
 
 https://github.com/user-attachments/assets/a0a99e05-1a62-470f-ad8d-d28446be95ec
